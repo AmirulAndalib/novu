@@ -391,7 +391,10 @@
     "logrocket",
     "backoff",
     "isequal",
-    "Scriptable"
+    "Scriptable",
+    "redlock",
+    "axios",
+    "ioredis"
   ],
   "flagWords": [],
   "patterns": [
