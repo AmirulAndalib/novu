@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SubscriberRepository, NotificationRepository } from '@novu/dal';
+import { Instrument } from '@novu/application-generic';
 import { ActivitiesResponseDto } from '../../dtos/activities-response.dto';
 import { GetActivityFeedCommand } from './get-activity-feed.command';
 
@@ -15,37 +16,59 @@ export class GetActivityFeed {
 
     let subscriberIds: string[] = [];
 
-    if (command.search || command.emails) {
-      const foundSubscribers = await this.subscribersRepository.searchSubscribers(
-        command.environmentId,
-        command.search,
-        command.emails
-      );
+    if (command.search || command.emails?.length || command.subscriberIds?.length) {
+      const foundSubscribers = await this.findSubscribers(command);
 
       subscriberIds = foundSubscribers.map((subscriber) => subscriber._id);
 
       if (subscriberIds.length === 0) {
         return {
           page: 0,
-          totalCount: 0,
+          hasMore: false,
           pageSize: LIMIT,
           data: [],
         };
       }
     }
 
-    const { data: notifications, totalCount } = await this.notificationRepository.getFeed(
+    const { notifications } = await this.getFeedNotifications(command, subscriberIds, LIMIT);
+
+    return {
+      page: command.page,
+      hasMore: notifications?.length === LIMIT,
+      pageSize: LIMIT,
+      data: notifications,
+    };
+  }
+
+  @Instrument()
+  private async findSubscribers(command: GetActivityFeedCommand) {
+    const foundSubscribers = await this.subscribersRepository.searchSubscribers(
       command.environmentId,
-      { channels: command.channels, templates: command.templates, subscriberIds, transactionId: command.transactionId },
+      command.subscriberIds,
+      command.emails,
+      command.search
+    );
+
+    return foundSubscribers;
+  }
+
+  @Instrument()
+  private async getFeedNotifications(command: GetActivityFeedCommand, subscriberIds: string[], LIMIT: number) {
+    const { data: notifications } = await this.notificationRepository.getFeed(
+      command.environmentId,
+      {
+        channels: command.channels,
+        templates: command.templates,
+        subscriberIds,
+        transactionId: command.transactionId,
+        after: command.after,
+        before: command.before,
+      },
       command.page * LIMIT,
       LIMIT
     );
 
-    return {
-      page: command.page,
-      totalCount,
-      pageSize: LIMIT,
-      data: notifications,
-    };
+    return { notifications };
   }
 }

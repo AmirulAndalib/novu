@@ -3,10 +3,18 @@
 /* eslint-disable */
 //
 import iFrameResize from 'iframe-resizer';
-import * as EventTypes from './shared/eventTypes';
+import {
+  SHOW_WIDGET,
+  LOGOUT,
+  INIT_IFRAME,
+  SET_COOKIE,
+  DOMAIN_NOT_ALLOWED,
+  BOOTSTRAP_DONE,
+  WIDGET_READY,
+} from './shared/eventTypes';
 import { UnmountedError, DomainVerificationError } from './shared/errors';
 import { IFRAME_URL } from './shared/resources';
-import type { IStore, ITab, INotificationCenterStyles } from '@novu/notification-center';
+import type { IStore, ITab, INotificationCenterStyles, ColorScheme } from '@novu/notification-center';
 
 const WEASL_WRAPPER_ID = 'novu-container';
 const IFRAME_ID = 'novu-iframe-element';
@@ -19,6 +27,8 @@ class Novu {
   private socketUrl?: string = '';
 
   private theme?: Record<string, unknown>;
+
+  private colorScheme?: ColorScheme;
 
   private styles?: INotificationCenterStyles;
 
@@ -45,6 +55,8 @@ class Novu {
   private widgetVisible = false;
 
   private listeners: { [key: string]: (data: any) => void } = {};
+
+  private showUserPreferences?: boolean;
 
   constructor(onloadFunc = function () {}) {
     this.debugMode = false;
@@ -76,6 +88,8 @@ class Novu {
       this.i18n = selectorOrOptions.i18n;
       this.tabs = selectorOrOptions.tabs;
       this.stores = selectorOrOptions.stores;
+      this.colorScheme = selectorOrOptions.colorScheme;
+      this.showUserPreferences = selectorOrOptions.showUserPreferences;
     }
 
     this.clientId = clientId;
@@ -138,14 +152,17 @@ class Novu {
         positionIframe();
 
         const elem = document.querySelector('.wrapper-novu-widget') as HTMLBodyElement;
+        const isWidgetHidden = elem && elem.style.display === 'none';
 
-        if (elem) {
+        if (isWidgetHidden) {
           elem.style.display = 'inline-block';
+        } else {
+          hideWidget();
         }
 
         _scope.iframe?.contentWindow?.postMessage(
           {
-            type: EventTypes.SHOW_WIDGET,
+            type: SHOW_WIDGET,
             value: {},
           },
           '*'
@@ -158,6 +175,17 @@ class Novu {
     window.addEventListener('resize', positionIframe);
     window.addEventListener('click', handleClick);
     window.addEventListener('touchstart', handleClick);
+  };
+
+  logout = () => {
+    if (!this.iframe) return;
+
+    this.iframe?.contentWindow?.postMessage(
+      {
+        type: LOGOUT,
+      },
+      '*'
+    );
   };
 
   // PRIVATE METHODS
@@ -179,15 +207,14 @@ class Novu {
 
   receiveMessage = (event: any) => {
     if (!!event && !!event.data && !!event.data.type) {
-      // eslint-disable-next-line default-case
       switch (event.data.type) {
-        case EventTypes.SET_COOKIE:
+        case SET_COOKIE:
           document.cookie = event.data.value;
           break;
-        case EventTypes.DOMAIN_NOT_ALLOWED:
+        case DOMAIN_NOT_ALLOWED:
           this.handleDomainNotAllowed();
           break;
-        case EventTypes.BOOTSTRAP_DONE:
+        case BOOTSTRAP_DONE:
           this.handleBootstrapDone();
           break;
       }
@@ -212,13 +239,13 @@ class Novu {
       window.addEventListener(
         'message',
         (event) => {
-          if (!event.target || event?.data?.type !== EventTypes.WIDGET_READY) {
+          if (!event.target || event?.data?.type !== WIDGET_READY) {
             return;
           }
 
           iframe?.contentWindow?.postMessage(
             {
-              type: EventTypes.INIT_IFRAME,
+              type: INIT_IFRAME,
               value: {
                 clientId: this.clientId,
                 backendUrl: this.backendUrl,
@@ -230,6 +257,8 @@ class Novu {
                 data: options,
                 tabs: this.tabs,
                 stores: this.stores,
+                colorScheme: this.colorScheme,
+                showUserPreferences: this.showUserPreferences,
               },
             },
             '*'
@@ -318,7 +347,6 @@ class Novu {
       const method: any = call[0];
       const args = call[1];
       if (allowedCalls.includes(method)) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         (this[method as any] as any).apply(this, args);
       }
@@ -335,9 +363,8 @@ class Novu {
       wrapper.className = 'wrapper-novu-widget';
       wrapper.style.display = 'none';
       wrapper.id = WEASL_WRAPPER_ID;
-      (
-        wrapper as any
-      ).style = `z-index: ${Number.MAX_SAFE_INTEGER}; width: 0; height: 0; position: relative; display: none;`;
+      (wrapper as any).style =
+        `z-index: ${Number.MAX_SAFE_INTEGER}; width: 0; height: 0; position: relative; display: none;`;
       wrapper.appendChild(this.iframe);
       document.body.appendChild(wrapper);
     }
@@ -354,9 +381,9 @@ export default ((window: any) => {
 
   novuApi.init = novu.init;
   novuApi.on = novu.on;
+  novuApi.logout = novu.logout;
 
   if (initCall) {
-    // eslint-disable-next-line prefer-spread
     novuApi[initCall[0]].apply(novuApi, initCall[1]);
 
     const onCalls = window.novu._c.filter((call: string[]) => call[0] === 'on');
@@ -365,12 +392,17 @@ export default ((window: any) => {
         novuApi[onCall[0]].apply(novuApi, onCall[1]);
       }
     }
-  } else {
-    // eslint-disable-next-line no-param-reassign
-    (window as any).novu.init = novu.init;
 
-    // eslint-disable-next-line no-param-reassign
+    const logoutCalls = window.novu._c.filter((call: string[]) => call[0] === 'logout');
+    if (logoutCalls.length) {
+      for (const logoutCall of logoutCalls) {
+        novuApi[logoutCall[0]].apply(novuApi, logoutCall[1]);
+      }
+    }
+  } else {
+    (window as any).novu.init = novu.init;
     (window as any).novu.on = novu.on;
+    (window as any).novu.logout = novu.logout;
   }
 })(window);
 
@@ -395,4 +427,6 @@ interface IOptions {
   };
   tabs: ITab[];
   stores: IStore[];
+  colorScheme?: ColorScheme;
+  showUserPreferences?: boolean;
 }

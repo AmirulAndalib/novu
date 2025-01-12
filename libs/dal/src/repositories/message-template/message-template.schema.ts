@@ -1,10 +1,12 @@
-import * as mongoose from 'mongoose';
-import { Schema, Document } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import { ActorTypeEnum } from '@novu/shared';
-import { schemaOptions } from '../schema-default.options';
-import { MessageTemplateEntity } from './message-template.entity';
 
-const messageTemplateSchema = new Schema(
+import { schemaOptions } from '../schema-default.options';
+import { MessageTemplateDBModel } from './message-template.entity';
+
+const mongooseDelete = require('mongoose-delete');
+
+const messageTemplateSchema = new Schema<MessageTemplateDBModel>(
   {
     type: {
       type: Schema.Types.String,
@@ -14,6 +16,7 @@ const messageTemplateSchema = new Schema(
       default: true,
     },
     name: Schema.Types.String,
+    stepId: Schema.Types.String,
     subject: Schema.Types.String,
     variables: [
       {
@@ -39,6 +42,7 @@ const messageTemplateSchema = new Schema(
       action: Schema.Types.Mixed,
     },
     preheader: Schema.Types.String,
+    senderName: Schema.Types.String,
     _environmentId: {
       type: Schema.Types.ObjectId,
       ref: 'Environment',
@@ -75,6 +79,9 @@ const messageTemplateSchema = new Schema(
       },
       data: Schema.Types.Mixed,
     },
+    controls: { schema: Schema.Types.Mixed, uiSchema: Schema.Types.Mixed },
+    output: { schema: Schema.Types.Mixed },
+    code: Schema.Types.String,
   },
   schemaOptions
 );
@@ -84,10 +91,12 @@ messageTemplateSchema.index({
   'triggers.identifier': 1,
 });
 
-interface IMessageTemplateDocument extends MessageTemplateEntity, Document {
-  _id: never;
-}
+messageTemplateSchema.index({
+  _parentId: 1,
+});
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+messageTemplateSchema.plugin(mongooseDelete, { deletedAt: true, deletedBy: true, overrideMethods: 'all' });
+
 export const MessageTemplate =
-  mongoose.models.MessageTemplate || mongoose.model<IMessageTemplateDocument>('MessageTemplate', messageTemplateSchema);
+  (mongoose.models.MessageTemplate as mongoose.Model<MessageTemplateDBModel>) ||
+  mongoose.model<MessageTemplateDBModel>('MessageTemplate', messageTemplateSchema);

@@ -1,11 +1,13 @@
-import { Injectable, Module } from '@nestjs/common';
+import { Injectable, Logger, Module } from '@nestjs/common';
 import { ExecutionDetailsEntity, ExecutionDetailsRepository, MessageEntity } from '@novu/dal';
 import { ChannelTypeEnum, ExecutionDetailsSourceEnum, ExecutionDetailsStatusEnum } from '@novu/shared';
 
+import { EmailEventStatusEnum, SmsEventStatusEnum } from '@novu/stateless';
 import { CreateExecutionDetailsCommand, WebhookCommand } from './create-execution-details.command';
 
 import { IWebhookResult } from '../../dtos/webhooks-response.dto';
-import { EmailEventStatusEnum, SmsEventStatusEnum } from '@novu/stateless';
+
+const LOG_CONTEXT = 'CreateExecutionDetails';
 
 @Injectable()
 export class CreateExecutionDetails {
@@ -19,7 +21,11 @@ export class CreateExecutionDetails {
       command.channel
     );
 
-    await this.executionDetailsRepository.create(executionDetailsEntity);
+    Logger.verbose({ executionDetailsEntity }, 'Creating execution details', LOG_CONTEXT);
+
+    await this.executionDetailsRepository.create(executionDetailsEntity, { writeConcern: 1 });
+
+    Logger.verbose({ executionDetailsEntity }, 'Created execution details', LOG_CONTEXT);
   }
 
   private mapWebhookEventIntoEntity(
@@ -43,7 +49,7 @@ export class CreateExecutionDetails {
       providerId,
       transactionId,
       status: this.mapStatus(status, channel),
-      detail: `${response} - (${status})` || status,
+      detail: `${response} - (${status})`,
       source: ExecutionDetailsSourceEnum.WEBHOOK,
       raw: JSON.stringify(row),
       isRetry: false,

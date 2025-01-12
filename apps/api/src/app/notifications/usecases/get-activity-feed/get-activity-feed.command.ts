@@ -20,13 +20,25 @@ export class GetActivityFeedCommand extends EnvironmentWithUserCommand {
 
   @IsOptional()
   @IsArray()
-  emails?: string[] | null;
+  emails?: string[];
 
   @IsOptional()
   @IsString()
-  search?: string | null;
+  search?: string;
+
+  @IsOptional()
+  @IsArray()
+  subscriberIds?: string[];
 
   @IsOptional()
   @IsString()
   transactionId?: string;
+
+  @IsOptional()
+  @IsString()
+  after?: string;
+
+  @IsOptional()
+  @IsString()
+  before?: string;
 }

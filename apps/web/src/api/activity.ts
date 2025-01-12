@@ -1,12 +1,12 @@
 import { api } from './api.client';
 
-// eslint-disable-next-line @typescript-eslint/default-param-last
 export function getActivityList(page = 0, filters) {
   return api.getFullResponse(`/v1/notifications`, {
     page,
     channels: filters?.channels,
     templates: filters?.templates,
-    search: filters?.search !== '' ? filters?.search : undefined,
+    emails: filters?.email !== '' ? filters?.email : undefined,
+    subscriberIds: filters?.subscriberId !== '' ? filters?.subscriberId : undefined,
     transactionId: filters?.transactionId !== '' ? filters?.transactionId : undefined,
   });
 }

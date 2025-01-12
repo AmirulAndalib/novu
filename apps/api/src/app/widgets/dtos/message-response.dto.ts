@@ -1,25 +1,28 @@
-import { ApiExtraModels, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiExtraModels, ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger';
 import {
   ButtonTypeEnum,
   ChannelCTATypeEnum,
   ChannelTypeEnum,
   EmailBlockTypeEnum,
+  IMessage,
+  IMessageAction,
+  IMessageCTA,
   MessageActionStatusEnum,
   TextAlignEnum,
 } from '@novu/shared';
 import { SubscriberResponseDto } from '../../subscribers/dtos';
-import { NotificationTemplateResponse } from '../../notification-template/dto/notification-template-response.dto';
+import { WorkflowResponse } from '../../workflows-v1/dto/workflow-response.dto';
 
 class EmailBlockStyles {
   @ApiProperty({
-    enum: ['left', 'right', 'center'],
+    enum: TextAlignEnum,
   })
   textAlign?: TextAlignEnum;
 }
 
-class EmailBlock {
+export class EmailBlock {
   @ApiProperty({
-    enum: ['text', 'button'],
+    enum: EmailBlockTypeEnum,
   })
   type: EmailBlockTypeEnum;
   @ApiProperty()
@@ -52,16 +55,19 @@ class MessageButton {
   resultContent?: string;
 }
 
-class MessageAction {
+class MessageAction implements IMessageAction {
   @ApiPropertyOptional({
     enum: MessageActionStatusEnum,
   })
   status?: MessageActionStatusEnum;
+
   @ApiPropertyOptional({
     type: MessageButton,
+    isArray: true,
   })
   buttons?: MessageButton[];
-  @ApiProperty({
+
+  @ApiPropertyOptional({
     type: MessageActionResult,
   })
   result: MessageActionResult;
@@ -72,19 +78,23 @@ class MessageCTAData {
   url?: string;
 }
 
-class MessageCTA {
-  @ApiProperty()
+export class MessageCTA implements IMessageCTA {
+  @ApiPropertyOptional({
+    enum: ChannelCTATypeEnum,
+  })
   type: ChannelCTATypeEnum;
+
   @ApiProperty()
   data: MessageCTAData;
+
   @ApiPropertyOptional()
   action?: MessageAction;
 }
 
 @ApiExtraModels(EmailBlock, MessageCTA)
-export class MessageResponseDto {
+export class MessageResponseDto implements IMessage {
   @ApiPropertyOptional()
-  _id?: string;
+  _id: string;
 
   @ApiProperty()
   _templateId: string;
@@ -110,20 +120,26 @@ export class MessageResponseDto {
   subscriber?: SubscriberResponseDto;
 
   @ApiPropertyOptional({
-    type: NotificationTemplateResponse,
+    type: WorkflowResponse,
   })
-  template?: NotificationTemplateResponse;
+  template?: WorkflowResponse;
 
   @ApiPropertyOptional()
   templateIdentifier?: string;
 
+  @ApiProperty()
+  createdAt: string;
+
   @ApiPropertyOptional()
-  createdAt?: string;
+  lastSeenDate?: string;
+
+  @ApiPropertyOptional()
+  lastReadDate?: string;
 
   @ApiProperty({
     oneOf: [
       {
-        type: '[EmailBlock]',
+        $ref: getSchemaPath(EmailBlock),
       },
       {
         type: 'string',
@@ -135,12 +151,16 @@ export class MessageResponseDto {
   @ApiProperty()
   transactionId: string;
 
+  @ApiProperty()
   subject?: string;
 
   @ApiProperty({
     enum: ChannelTypeEnum,
   })
   channel: ChannelTypeEnum;
+
+  @ApiProperty()
+  read: boolean;
 
   @ApiProperty()
   seen: boolean;
@@ -163,16 +183,13 @@ export class MessageResponseDto {
   @ApiPropertyOptional()
   title?: string;
 
-  @ApiProperty()
-  lastSeenDate: string;
-
   @ApiProperty({
     type: MessageCTA,
   })
   cta: MessageCTA;
 
-  @ApiProperty()
-  _feedId: string;
+  @ApiPropertyOptional()
+  _feedId?: string | null;
 
   @ApiProperty({
     enum: ['sent', 'error', 'warning'],
@@ -197,8 +214,11 @@ export class MessageResponseDto {
 }
 
 export class MessagesResponseDto {
+  @ApiPropertyOptional()
+  totalCount?: number;
+
   @ApiProperty()
-  totalCount: number;
+  hasMore: boolean;
 
   @ApiProperty()
   data: MessageResponseDto[];

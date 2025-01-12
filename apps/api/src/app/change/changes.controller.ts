@@ -1,34 +1,31 @@
-import {
-  Body,
-  ClassSerializerInterceptor,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  UseGuards,
-  UseInterceptors,
-} from '@nestjs/common';
-import { IJwtPayload } from '@novu/shared';
+import { Body, ClassSerializerInterceptor, Controller, Get, Param, Post, Query, UseInterceptors } from '@nestjs/common';
+import { ApiRateLimitCostEnum, UserSessionData } from '@novu/shared';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiExcludeController } from '@nestjs/swagger/dist/decorators/api-exclude-controller.decorator';
 import { UserSession } from '../shared/framework/user.decorator';
-import { JwtAuthGuard } from '../auth/framework/auth.guard';
-import { ApplyChange, ApplyChangeCommand } from '../change/usecases';
+import { ApplyChange, ApplyChangeCommand } from './usecases';
 import { GetChanges } from './usecases/get-changes/get-changes.usecase';
 import { GetChangesCommand } from './usecases/get-changes/get-changes.command';
 import { BulkApplyChange } from './usecases/bulk-apply-change/bulk-apply-change.usecase';
 import { BulkApplyChangeCommand } from './usecases/bulk-apply-change/bulk-apply-change.command';
 import { CountChanges } from './usecases/count-changes/count-changes.usecase';
 import { CountChangesCommand } from './usecases/count-changes/count-changes.command';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ChangesResponseDto, ChangeResponseDto } from './dtos/change-response.dto';
+import { ChangeResponseDto, ChangesResponseDto } from './dtos/change-response.dto';
 import { ChangesRequestDto } from './dtos/change-request.dto';
-
 import { ExternalApiAccessible } from '../auth/framework/external-api.decorator';
+import { ApiCommonResponses, ApiOkResponse, ApiResponse } from '../shared/framework/response.decorator';
+import { DataNumberDto } from '../shared/dtos/data-wrapper-dto';
+import { BulkApplyChangeDto } from './dtos/bulk-apply-change.dto';
+import { ThrottlerCost } from '../rate-limiting/guards';
+import { UserAuthentication } from '../shared/framework/swagger/api.key.security';
+import { SdkMethodName } from '../shared/framework/swagger/sdk.decorators';
 
+@ApiCommonResponses()
 @Controller('/changes')
 @UseInterceptors(ClassSerializerInterceptor)
-@UseGuards(JwtAuthGuard)
+@UserAuthentication()
 @ApiTags('Changes')
+@ApiExcludeController()
 export class ChangesController {
   constructor(
     private applyChange: ApplyChange,
@@ -45,12 +42,15 @@ export class ChangesController {
     summary: 'Get changes',
   })
   @ExternalApiAccessible()
-  async getChanges(@UserSession() user: IJwtPayload, @Query() query: ChangesRequestDto): Promise<ChangesResponseDto> {
+  async getChanges(
+    @UserSession() user: UserSessionData,
+    @Query() query: ChangesRequestDto
+  ): Promise<ChangesResponseDto> {
     return await this.getChangesUsecase.execute(
       GetChangesCommand.create({
         promoted: query.promoted === 'true',
-        page: query.page ? Number(query.page) : 0,
-        limit: query.limit ? Number(query.limit) : 10,
+        page: query.page ? query.page : 0,
+        limit: query.limit ? query.limit : 10,
         environmentId: user.environmentId,
         organizationId: user.organizationId,
         userId: user._id,
@@ -60,13 +60,14 @@ export class ChangesController {
 
   @Get('/count')
   @ApiOkResponse({
-    type: Number,
+    type: DataNumberDto,
   })
   @ApiOperation({
     summary: 'Get changes count',
   })
   @ExternalApiAccessible()
-  async getChangesCount(@UserSession() user: IJwtPayload): Promise<number> {
+  @SdkMethodName('count')
+  async getChangesCount(@UserSession() user: UserSessionData): Promise<number> {
     return await this.countChanges.execute(
       CountChangesCommand.create({
         environmentId: user.environmentId,
@@ -76,21 +77,21 @@ export class ChangesController {
     );
   }
 
+  @ThrottlerCost(ApiRateLimitCostEnum.BULK)
   @Post('/bulk/apply')
-  @ApiCreatedResponse({
-    type: [ChangeResponseDto],
-  })
+  @ApiResponse(ChangeResponseDto, 201, true)
   @ApiOperation({
     summary: 'Apply changes',
   })
   @ExternalApiAccessible()
+  @SdkMethodName('applyBulk')
   async bulkApplyDiff(
-    @UserSession() user: IJwtPayload,
-    @Body('changeIds') changeIds: string[]
+    @UserSession() user: UserSessionData,
+    @Body() body: BulkApplyChangeDto
   ): Promise<ChangeResponseDto[][]> {
     return this.bulkApplyChange.execute(
       BulkApplyChangeCommand.create({
-        changeIds,
+        changeIds: body.changeIds,
         environmentId: user.environmentId,
         organizationId: user.organizationId,
         userId: user._id,
@@ -99,17 +100,19 @@ export class ChangesController {
   }
 
   @Post('/:changeId/apply')
-  @ApiCreatedResponse({
-    type: [ChangeResponseDto],
-  })
+  @ApiResponse(ChangeResponseDto, 201, true)
   @ApiOperation({
     summary: 'Apply change',
   })
   @ExternalApiAccessible()
-  async applyDiff(@UserSession() user: IJwtPayload, @Param('changeId') changeId: string): Promise<ChangeResponseDto[]> {
+  @SdkMethodName('apply')
+  async applyDiff(
+    @UserSession() user: UserSessionData,
+    @Param('changeId') changeId: string
+  ): Promise<ChangeResponseDto[]> {
     return this.applyChange.execute(
       ApplyChangeCommand.create({
-        changeId: changeId,
+        changeId,
         environmentId: user.environmentId,
         organizationId: user.organizationId,
         userId: user._id,

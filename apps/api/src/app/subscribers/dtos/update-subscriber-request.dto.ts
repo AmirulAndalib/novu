@@ -1,11 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsLocale, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsEmail, IsLocale, IsOptional, IsString } from 'class-validator';
 import { SubscriberCustomData } from '@novu/shared';
+import { Transform } from 'class-transformer';
+import { SubscriberChannelDto } from './create-subscriber-request.dto';
 
 export class UpdateSubscriberRequestDto {
   @ApiProperty()
-  @IsEmail()
+  @Transform((params) => (params.value === '' ? null : params.value))
   @IsOptional()
+  @IsEmail()
   email?: string;
 
   @ApiProperty()
@@ -36,4 +39,9 @@ export class UpdateSubscriberRequestDto {
   @ApiProperty()
   @IsOptional()
   data?: SubscriberCustomData;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsArray()
+  channels?: SubscriberChannelDto[];
 }

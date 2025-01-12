@@ -1,42 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ChatProviderIdEnum,
-  EmailProviderIdEnum,
   ExecutionDetailsSourceEnum,
   ExecutionDetailsStatusEnum,
-  InAppProviderIdEnum,
   MessageTemplateDto,
-  PushProviderIdEnum,
+  ProvidersIdEnum,
   StepTypeEnum,
+  TriggerTypeEnum,
 } from '@novu/shared';
 import { StepFilter } from '@novu/dal';
 
-type ProvidersEnum = ChatProviderIdEnum | EmailProviderIdEnum | InAppProviderIdEnum | PushProviderIdEnum;
-
-class ActivityNotificationStepTemplateResponseDto {
-  @ApiProperty()
-  _id: string;
-
-  @ApiProperty()
-  active: boolean;
-
-  @ApiPropertyOptional()
-  content?: Record<string, unknown>[];
-
-  @ApiPropertyOptional()
-  contentType?: string;
-
-  @ApiPropertyOptional()
-  name?: string;
-
-  @ApiPropertyOptional()
-  subject?: string;
-
-  @ApiProperty()
-  type: StepTypeEnum;
-}
-
-class ActivityNotificationStepResponseDto {
+export class ActivityNotificationStepResponseDto {
   @ApiProperty()
   _id: string;
 
@@ -50,7 +23,7 @@ class ActivityNotificationStepResponseDto {
   template?: MessageTemplateDto;
 }
 
-class ActivityNotificationExecutionDetailResponseDto {
+export class ActivityNotificationExecutionDetailResponseDto {
   @ApiProperty()
   _id: string;
 
@@ -72,7 +45,7 @@ class ActivityNotificationExecutionDetailResponseDto {
   isTest: boolean;
 
   @ApiProperty()
-  providerId: ProvidersEnum;
+  providerId: ProvidersIdEnum;
 
   @ApiPropertyOptional()
   raw?: string;
@@ -83,7 +56,7 @@ class ActivityNotificationExecutionDetailResponseDto {
   source: ExecutionDetailsSourceEnum;
 }
 
-class ActivityNotificationJobResponseDto {
+export class ActivityNotificationJobResponseDto {
   @ApiProperty()
   _id: string;
 
@@ -103,13 +76,13 @@ class ActivityNotificationJobResponseDto {
   payload?: Record<string, unknown>;
 
   @ApiProperty()
-  providerId: ProvidersEnum;
+  providerId: ProvidersIdEnum;
 
   @ApiProperty()
   status: string;
 }
 
-class ActivityNotificationSubscriberResponseDto {
+export class ActivityNotificationSubscriberResponseDto {
   @ApiPropertyOptional()
   firstName?: string;
 
@@ -126,13 +99,15 @@ class ActivityNotificationSubscriberResponseDto {
   phone?: string;
 }
 
-class NotificationTriggerVariable {
+export class NotificationTriggerVariable {
   name: string;
 }
 
-class NotificationTrigger {
-  @ApiProperty()
-  type: 'event';
+export class NotificationTrigger {
+  @ApiProperty({
+    enum: TriggerTypeEnum,
+  })
+  type: TriggerTypeEnum;
 
   @ApiProperty()
   identifier: string;
@@ -173,7 +148,7 @@ export class ActivityNotificationResponseDto {
   transactionId: string;
 
   @ApiPropertyOptional()
-  createdAt?: Date;
+  createdAt?: string;
 
   @ApiPropertyOptional({
     enum: StepTypeEnum,
@@ -192,9 +167,9 @@ export class ActivityNotificationResponseDto {
 
 export class ActivitiesResponseDto {
   @ApiProperty()
-  totalCount: number;
+  hasMore: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ type: [ActivityNotificationResponseDto], description: 'Array of Activity notifications' })
   data: ActivityNotificationResponseDto[];
 
   @ApiProperty()

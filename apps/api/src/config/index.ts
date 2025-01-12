@@ -1,22 +1,3 @@
-import * as dotenv from 'dotenv';
-import { getContextPath, NovuComponentEnum } from '@novu/shared';
-
-dotenv.config();
-
-const envFileMapper = {
-  prod: '.env.production',
-  test: '.env.test',
-  ci: '.env.ci',
-  local: '.env',
-  dev: '.env.development',
-};
-const selectedEnvFile = envFileMapper[process.env.NODE_ENV] || '.env';
-
-const path = `${__dirname}/${process.env.E2E_RUNNER ? '..' : 'src'}/${selectedEnvFile}`;
-
-const { error } = dotenv.config({ path });
-if (error && !process.env.LAMBDA_TASK_ROOT) throw error;
-
-const CONTEXT_PATH = getContextPath(NovuComponentEnum.API);
-
-export { CONTEXT_PATH };
+export * from './cors.config';
+export * from './env.config';
+export * from './env.validators';

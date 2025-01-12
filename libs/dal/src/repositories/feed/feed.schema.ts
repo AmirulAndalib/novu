@@ -1,11 +1,11 @@
-import * as mongoose from 'mongoose';
-import { Schema, Document } from 'mongoose';
-import * as mongooseDelete from 'mongoose-delete';
-import { schemaOptions } from '../schema-default.options';
-import { FeedEntity } from './feed.entity';
+import mongoose, { Schema } from 'mongoose';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-const feedSchema = new Schema(
+import { schemaOptions } from '../schema-default.options';
+import { FeedDBModel } from './feed.entity';
+
+const mongooseDelete = require('mongoose-delete');
+
+const feedSchema = new Schema<FeedDBModel>(
   {
     name: Schema.Types.String,
     identifier: {
@@ -26,11 +26,19 @@ const feedSchema = new Schema(
   schemaOptions
 );
 
+feedSchema.index({
+  _organizationId: 1,
+});
+
+feedSchema.index({
+  _environmentId: 1,
+});
+
+feedSchema.index({
+  identifier: 1,
+});
+
 feedSchema.plugin(mongooseDelete, { deletedAt: true, deletedBy: true, overrideMethods: 'all' });
 
-interface IFeedDocument extends FeedEntity, Document {
-  _id: never;
-}
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const Feed = mongoose.models.Feed || mongoose.model<IFeedDocument>('Feed', feedSchema);
+export const Feed =
+  (mongoose.models.Feed as mongoose.Model<FeedDBModel>) || mongoose.model<FeedDBModel>('Feed', feedSchema);

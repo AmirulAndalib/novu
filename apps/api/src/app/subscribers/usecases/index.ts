@@ -1,16 +1,26 @@
-import { CreateSubscriber } from './create-subscriber';
+import {
+  GetSubscriberPreference,
+  GetSubscriberTemplatePreference,
+  UpdateSubscriber,
+  CreateSubscriber,
+  GetSubscriberGlobalPreference,
+  UpdateSubscriberChannel,
+} from '@novu/application-generic';
+
 import { GetSubscribers } from './get-subscribers';
 import { GetSubscriber } from './get-subscriber';
-import { GetSubscriberPreference } from './get-subscriber-preference/get-subscriber-preference.usecase';
-import { GetSubscriberTemplatePreference } from './get-subscriber-template-preference';
-import { GetPreferences } from './get-preferences/get-preferences.usecase';
+import { GetPreferencesByLevel } from './get-preferences-by-level/get-preferences-by-level.usecase';
 import { RemoveSubscriber } from './remove-subscriber';
 import { SearchByExternalSubscriberIds } from './search-by-external-subscriber-ids';
-import { UpdatePreference } from './update-preference/update-preference.usecase';
-import { UpdateSubscriber } from './update-subscriber';
-import { UpdateSubscriberChannel } from './update-subscriber-channel';
-import { UpdateSubscriberPreference } from './update-subscriber-preference';
 import { UpdateSubscriberOnlineFlag } from './update-subscriber-online-flag';
+import { ChatOauth } from './chat-oauth/chat-oauth.usecase';
+import { ChatOauthCallback } from './chat-oauth-callback/chat-oauth-callback.usecase';
+import { DeleteSubscriberCredentials } from './delete-subscriber-credentials/delete-subscriber-credentials.usecase';
+import { BulkCreateSubscribers } from './bulk-create-subscribers/bulk-create-subscribers.usecase';
+import { CreateIntegration } from '../../integrations/usecases/create-integration/create-integration.usecase';
+import { CheckIntegration } from '../../integrations/usecases/check-integration/check-integration.usecase';
+import { CheckIntegrationEMail } from '../../integrations/usecases/check-integration/check-integration-email.usecase';
+import { UpdatePreferences } from '../../inbox/usecases/update-preferences/update-preferences.usecase';
 
 export {
   SearchByExternalSubscriberIds,
@@ -23,12 +33,19 @@ export const USE_CASES = [
   GetSubscriber,
   GetSubscriberPreference,
   GetSubscriberTemplatePreference,
-  GetPreferences,
+  GetPreferencesByLevel,
   RemoveSubscriber,
   SearchByExternalSubscriberIds,
-  UpdatePreference,
   UpdateSubscriber,
   UpdateSubscriberChannel,
-  UpdateSubscriberPreference,
   UpdateSubscriberOnlineFlag,
+  ChatOauthCallback,
+  ChatOauth,
+  DeleteSubscriberCredentials,
+  BulkCreateSubscribers,
+  GetSubscriberGlobalPreference,
+  CreateIntegration,
+  CheckIntegration,
+  CheckIntegrationEMail,
+  UpdatePreferences,
 ];

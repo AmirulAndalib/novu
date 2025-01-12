@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PromoteTypeChangeCommand } from '../promote-type-change.command';
 import { FeedEntity, FeedRepository } from '@novu/dal';
+import { PromoteTypeChangeCommand } from '../promote-type-change.command';
 
 @Injectable()
 export class PromoteFeedChange {
@@ -17,6 +17,10 @@ export class PromoteFeedChange {
     }
 
     if (!item) {
+      if (command.item.deleted) {
+        return;
+      }
+
       return this.feedRepository.create({
         name: command.item.name,
         identifier: command.item.name,
