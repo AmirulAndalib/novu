@@ -1,20 +1,18 @@
+import { EncryptedSecret, IApiRateLimitMaximum } from '@novu/shared';
 import { BaseRepository } from '../base-repository';
-import { IApiKey, EnvironmentEntity } from './environment.entity';
+import { IApiKey, EnvironmentEntity, EnvironmentDBModel } from './environment.entity';
 import { Environment } from './environment.schema';
-import { Document, FilterQuery } from 'mongoose';
 
-export class EnvironmentRepository extends BaseRepository<
-  FilterQuery<EnvironmentEntity & Document>,
-  EnvironmentEntity
-> {
+export class EnvironmentRepository extends BaseRepository<EnvironmentDBModel, EnvironmentEntity, object> {
   constructor() {
     super(Environment, EnvironmentEntity);
   }
 
   async findEnvironmentByIdentifier(identifier: string) {
-    return await this.findOne({
-      identifier,
-    });
+    const data = await this.MongooseModel.findOne({ identifier }).read('secondaryPreferred');
+    if (!data) return null;
+
+    return this.mapEntity(data.toObject());
   }
 
   async updateApiKeyUserId(organizationId: string, oldUserId: string, newUserId: string) {
@@ -37,7 +35,14 @@ export class EnvironmentRepository extends BaseRepository<
     });
   }
 
-  async addApiKey(environmentId: string, key: string, userId: string) {
+  async findByIdAndOrganization(environmentId: string, organizationId: string) {
+    return this.findOne({
+      _id: environmentId,
+      _organizationId: organizationId,
+    });
+  }
+
+  async addApiKey(environmentId: string, key: EncryptedSecret, userId: string) {
     return await this.update(
       {
         _id: environmentId,
@@ -53,10 +58,8 @@ export class EnvironmentRepository extends BaseRepository<
     );
   }
 
-  async findByApiKey(key: string) {
-    return await this.findOne({
-      'apiKeys.key': key,
-    });
+  async findByApiKey({ hash }: { hash: string }) {
+    return await this.findOne({ 'apiKeys.hash': hash }, undefined, { readPreference: 'secondaryPreferred' });
   }
 
   async getApiKeys(environmentId: string): Promise<IApiKey[]> {
@@ -71,7 +74,7 @@ export class EnvironmentRepository extends BaseRepository<
     return environment.apiKeys;
   }
 
-  async updateApiKey(environmentId: string, key: string, userId: string) {
+  async updateApiKey(environmentId: string, key: EncryptedSecret, userId: string, hash?: string) {
     await this.update(
       {
         _id: environmentId,
@@ -82,6 +85,7 @@ export class EnvironmentRepository extends BaseRepository<
             {
               key,
               _userId: userId,
+              hash,
             },
           ],
         },
@@ -89,5 +93,22 @@ export class EnvironmentRepository extends BaseRepository<
     );
 
     return await this.getApiKeys(environmentId);
+  }
+
+  async updateApiRateLimits(environmentId: string, apiRateLimits: Partial<IApiRateLimitMaximum>) {
+    return await this.update(
+      {
+        _id: environmentId,
+      },
+      [
+        {
+          $set: {
+            apiRateLimits: {
+              $mergeObjects: ['$apiRateLimits', apiRateLimits],
+            },
+          },
+        },
+      ]
+    );
   }
 }

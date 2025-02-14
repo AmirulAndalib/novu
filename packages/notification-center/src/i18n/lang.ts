@@ -34,6 +34,7 @@ import { JA } from './languages/ja';
 import { KA } from './languages/ka';
 import { KK } from './languages/kk';
 import { KM } from './languages/km';
+import { KN } from './languages/kn';
 import { KO } from './languages/ko';
 import { KU } from './languages/ku';
 import { LO } from './languages/lo';
@@ -42,9 +43,9 @@ import { LV } from './languages/lv';
 import { ML } from './languages/ml';
 import { MR } from './languages/mr';
 import { MS } from './languages/ms';
+import { NB } from './languages/nb';
 import { NE } from './languages/ne';
 import { NL } from './languages/nl';
-import { NO } from './languages/no';
 import { OR } from './languages/or';
 import { PA } from './languages/pa';
 import { PL } from './languages/pl';
@@ -75,6 +76,10 @@ export interface ITranslationContent {
   readonly markAllAsRead: string;
   readonly poweredBy: string;
   readonly settings: string;
+  readonly removeMessage: string;
+  readonly markAsRead: string;
+  readonly markAsUnRead: string;
+  readonly noNewNotification: string;
 }
 
 export interface ITranslationEntry {
@@ -119,6 +124,7 @@ export const TRANSLATIONS: Record<I18NLanguage, ITranslationEntry> = {
   ka: KA,
   kk: KK,
   km: KM,
+  kn: KN,
   ko: KO,
   ku: KU,
   lo: LO,
@@ -129,7 +135,7 @@ export const TRANSLATIONS: Record<I18NLanguage, ITranslationEntry> = {
   ms: MS,
   ne: NE,
   nl: NL,
-  no: NO,
+  nb: NB,
   or: OR,
   pa: PA,
   pl: PL,
@@ -165,7 +171,7 @@ export const TRANSLATIONS: Record<I18NLanguage, ITranslationEntry> = {
  * - For French use "fr"
  *
  * Any new language should also be added to the documentation
- * https://docs.novu.co/notification-center/react/react-components#customize-the-ui-language
+ * https://docs.novu.co/notification-center/client/react/customization#customize-the-ui-language
  */
 export type I18NLanguage =
   | 'af'
@@ -205,6 +211,7 @@ export type I18NLanguage =
   | 'ka'
   | 'kk'
   | 'km'
+  | 'kn'
   | 'ko'
   | 'ku'
   | 'lo'
@@ -213,9 +220,9 @@ export type I18NLanguage =
   | 'ml'
   | 'mr'
   | 'ms'
+  | 'nb'
   | 'ne'
   | 'nl'
-  | 'no'
   | 'or'
   | 'pa'
   | 'pl'

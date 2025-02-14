@@ -1,9 +1,9 @@
-import * as mongoose from 'mongoose';
-import { Schema, Document } from 'mongoose';
-import { schemaOptions } from '../schema-default.options';
-import { MemberEntity } from './member.entity';
+import mongoose, { Schema } from 'mongoose';
 
-const memberSchema = new Schema(
+import { schemaOptions } from '../schema-default.options';
+import { MemberDBModel } from './member.entity';
+
+const memberSchema = new Schema<MemberDBModel>(
   {
     invite: {
       email: Schema.Types.String,
@@ -34,10 +34,21 @@ const memberSchema = new Schema(
   schemaOptions
 );
 
-interface IMemberDocument extends MemberEntity, Document {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _id: any;
-}
+memberSchema.index({
+  _userId: 1,
+});
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const Member = mongoose.models.Member || mongoose.model<IMemberDocument>('Member', memberSchema);
+memberSchema.index({
+  'invite.token': 1,
+});
+
+memberSchema.index({
+  _organizationId: 1,
+});
+
+memberSchema.index({
+  'organizationId._userId._id': 1,
+});
+
+export const Member =
+  (mongoose.models.Member as mongoose.Model<MemberDBModel>) || mongoose.model<MemberDBModel>('Member', memberSchema);

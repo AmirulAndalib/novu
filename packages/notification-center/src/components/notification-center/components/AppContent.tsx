@@ -3,8 +3,7 @@ import { MantineProvider, MantineThemeOverride } from '@mantine/core';
 import { css } from '@emotion/css';
 
 import { Layout } from './layout/Layout';
-import { useNovuTheme } from '../../../hooks';
-import { useFetchOrganization } from '../../../hooks';
+import { useNovuTheme, useFetchOrganization } from '../../../hooks';
 
 export function AppContent() {
   const { theme, common } = useNovuTheme();
@@ -29,7 +28,7 @@ export function AppContent() {
 
 const wrapperClassName = (primaryColor: string, fontFamily: string, dir: string) => css`
   margin: 0;
-  font-family: ${fontFamily}, Helvetica, sans-serif;
+  font-family: ${fontFamily === 'inherit' ? fontFamily : `${fontFamily}, Helvetica, sans-serif`};
   color: #333737;
   direction: ${dir};
   width: 420px;

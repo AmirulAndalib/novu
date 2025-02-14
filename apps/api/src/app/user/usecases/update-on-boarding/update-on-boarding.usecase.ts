@@ -1,18 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserRepository } from '@novu/dal';
+import { buildUserKey, InvalidateCacheService } from '@novu/application-generic';
+
 import { UpdateOnBoardingCommand } from './update-on-boarding.command';
-import { CacheKeyPrefixEnum, InvalidateCacheService } from '../../../shared/services/cache';
+import type { UserResponseDto } from '../../dtos/user-response.dto';
+import { BaseUserProfileUsecase } from '../base-user-profile.usecase';
 
 @Injectable()
-export class UpdateOnBoardingUsecase {
-  constructor(private invalidateCache: InvalidateCacheService, private readonly userRepository: UserRepository) {}
+export class UpdateOnBoardingUsecase extends BaseUserProfileUsecase {
+  constructor(
+    private invalidateCache: InvalidateCacheService,
+    private readonly userRepository: UserRepository
+  ) {
+    super();
+  }
 
-  async execute(command: UpdateOnBoardingCommand) {
-    this.invalidateCache.clearCache({
-      storeKeyPrefix: [CacheKeyPrefixEnum.USER],
-      credentials: {
+  async execute(command: UpdateOnBoardingCommand): Promise<UserResponseDto> {
+    await this.invalidateCache.invalidateByKey({
+      key: buildUserKey({
         _id: command.userId,
-      },
+      }),
     });
 
     await this.userRepository.update(
@@ -29,6 +36,6 @@ export class UpdateOnBoardingUsecase {
     const user = await this.userRepository.findById(command.userId);
     if (!user) throw new NotFoundException('User not found');
 
-    return user;
+    return this.mapToDto(user);
   }
 }

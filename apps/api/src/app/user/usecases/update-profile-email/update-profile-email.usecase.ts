@@ -1,21 +1,32 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { UserRepository } from '@novu/dal';
-import { AnalyticsService } from '@novu/application-generic';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
+import { UserRepository, EnvironmentRepository } from '@novu/dal';
+import {
+  AnalyticsService,
+  buildAuthServiceKey,
+  buildUserKey,
+  decryptApiKey,
+  InvalidateCacheService,
+} from '@novu/application-generic';
+
+import { normalizeEmail } from '@novu/shared';
 import { UpdateProfileEmailCommand } from './update-profile-email.command';
-import { CacheKeyPrefixEnum, InvalidateCacheService } from '../../../shared/services/cache';
-import { normalizeEmail } from '../../../shared/helpers/email-normalization.service';
-import { ANALYTICS_SERVICE } from '../../../shared/shared.module';
+import type { UserResponseDto } from '../../dtos/user-response.dto';
+import { BaseUserProfileUsecase } from '../base-user-profile.usecase';
 
 @Injectable()
-export class UpdateProfileEmail {
+export class UpdateProfileEmail extends BaseUserProfileUsecase {
   constructor(
     private invalidateCache: InvalidateCacheService,
     private readonly userRepository: UserRepository,
-    @Inject(ANALYTICS_SERVICE) private analyticsService: AnalyticsService
-  ) {}
+    private readonly environmentRepository: EnvironmentRepository,
+    @Inject(forwardRef(() => AnalyticsService))
+    private analyticsService: AnalyticsService
+  ) {
+    super();
+  }
 
-  async execute(command: UpdateProfileEmailCommand) {
+  async execute(command: UpdateProfileEmailCommand): Promise<UserResponseDto> {
     const email = normalizeEmail(command.email);
     const user = await this.userRepository.findByEmail(email);
     if (user) throw new BadRequestException('E-mail is invalid or taken');
@@ -31,11 +42,20 @@ export class UpdateProfileEmail {
       }
     );
 
-    this.invalidateCache.clearCache({
-      storeKeyPrefix: [CacheKeyPrefixEnum.USER],
-      credentials: {
+    await this.invalidateCache.invalidateByKey({
+      key: buildUserKey({
         _id: command.userId,
-      },
+      }),
+    });
+
+    const apiKeys = await this.environmentRepository.getApiKeys(command.environmentId);
+
+    const decryptedApiKey = decryptApiKey(apiKeys[0].key);
+
+    await this.invalidateCache.invalidateByKey({
+      key: buildAuthServiceKey({
+        apiKey: decryptedApiKey,
+      }),
     });
 
     const updatedUser = await this.userRepository.findById(command.userId);
@@ -43,6 +63,6 @@ export class UpdateProfileEmail {
 
     this.analyticsService.setValue(updatedUser._id, 'email', email);
 
-    return updatedUser;
+    return this.mapToDto(updatedUser);
   }
 }
