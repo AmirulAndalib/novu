@@ -1,41 +1,57 @@
-import { BaseRepository, Omit } from '../base-repository';
-import { JobEntity, JobStatusEnum } from './job.entity';
+import { ProjectionType } from 'mongoose';
+import { DigestTypeEnum, IDigestRegularMetadata, StepTypeEnum, DigestCreationResultEnum } from '@novu/shared';
+
+import { sub, isBefore } from 'date-fns';
+import { BaseRepository } from '../base-repository';
+import { JobEntity, JobDBModel, JobStatusEnum } from './job.entity';
 import { Job } from './job.schema';
-import { ChannelTypeEnum, StepTypeEnum } from '@novu/shared';
-import { Document, FilterQuery, ProjectionType } from 'mongoose';
 import { NotificationTemplateEntity } from '../notification-template';
 import { SubscriberEntity } from '../subscriber';
 import { NotificationEntity } from '../notification';
 import { EnvironmentEntity } from '../environment';
+import type { EnforceEnvOrOrgIds, IUpdateResult } from '../../types';
+import { DalException } from '../../shared';
 
-class PartialJobEntity extends Omit(JobEntity, ['_environmentId', '_organizationId']) {}
+type JobEntityPopulated = JobEntity & {
+  template: NotificationTemplateEntity;
+  notification: NotificationEntity;
+  subscriber: SubscriberEntity;
+  environment: EnvironmentEntity;
+};
 
-type EnforceEnvironmentQuery = FilterQuery<PartialJobEntity & Document> &
-  ({ _environmentId: string } | { _organizationId: string });
+export interface IDelayOrDigestJobResult {
+  digestResult: DigestCreationResultEnum;
+  activeDigestId?: string;
+  activeNotificationId?: string;
+}
 
-export class JobRepository extends BaseRepository<EnforceEnvironmentQuery, JobEntity> {
+export class JobRepository extends BaseRepository<JobDBModel, JobEntity, EnforceEnvOrOrgIds> {
   constructor() {
     super(Job, JobEntity);
   }
 
-  public async storeJobs(jobs: Omit<JobEntity, '_id'>[]): Promise<JobEntity[]> {
+  public async storeJobs(jobs: Omit<JobEntity, '_id' | 'createdAt' | 'updatedAt'>[]): Promise<JobEntity[]> {
     const stored: JobEntity[] = [];
-    for (let index = 0; index < jobs.length; index++) {
+    for (let index = 0; index < jobs.length; index += 1) {
       if (index > 0) {
+        // eslint-disable-next-line no-param-reassign
         jobs[index]._parentId = stored[index - 1]._id;
       }
 
-      const created = await this.create(jobs[index]);
-      stored.push(created);
+      const created = new this.MongooseModel({ ...jobs[index], createdAt: Date.now() });
+
+      stored.push(this.mapEntity(created));
     }
+
+    await this.insertMany(stored, true);
 
     return stored;
   }
 
-  public async updateStatus(organizationId: string, jobId: string, status: JobStatusEnum) {
-    await this.update(
+  public async updateStatus(environmentId: string, jobId: string, status: JobStatusEnum): Promise<IUpdateResult> {
+    return this.MongooseModel.updateOne(
       {
-        _organizationId: organizationId,
+        _environmentId: environmentId,
         _id: jobId,
       },
       {
@@ -46,11 +62,11 @@ export class JobRepository extends BaseRepository<EnforceEnvironmentQuery, JobEn
     );
   }
 
-  public async setError(organizationId: string, jobId: string, error: Error) {
-    await this.update(
+  public async setError(organizationId: string, jobId: string, error: any): Promise<void> {
+    const result = await this._model.updateOne(
       {
-        _organizationId: organizationId,
-        _id: jobId,
+        _organizationId: this.convertStringToObjectId(organizationId),
+        _id: this.convertStringToObjectId(jobId),
       },
       {
         $set: {
@@ -58,18 +74,22 @@ export class JobRepository extends BaseRepository<EnforceEnvironmentQuery, JobEn
         },
       }
     );
+
+    if (result.modifiedCount === 0) {
+      throw new DalException(
+        `There was a problem when trying to set an error for the job ${jobId} in the organization ${organizationId}`
+      );
+    }
   }
 
-  public async findInAppsForDigest(organizationId: string, transactionId: string, subscriberId: string) {
-    return await this.find({
-      _organizationId: organizationId,
-      type: ChannelTypeEnum.IN_APP,
-      _subscriberId: subscriberId,
-      transactionId,
-    });
-  }
-
-  public async findJobsToDigest(from: Date, templateId: string, environmentId: string, subscriberId: string) {
+  public async findJobsToDigest(
+    from: Date,
+    templateId: string,
+    environmentId: string,
+    subscriberId: string,
+    digestKey?: string,
+    digestValue?: string | number
+  ) {
     /**
      * Remove digest jobs that have been completed and currently delayed jobs that have a digest pending.
      */
@@ -96,6 +116,7 @@ export class JobRepository extends BaseRepository<EnforceEnvironmentQuery, JobEn
       type: StepTypeEnum.TRIGGER,
       _environmentId: environmentId,
       _subscriberId: subscriberId,
+      ...(digestKey && { [`payload.${digestKey}`]: digestValue }),
       transactionId: {
         $nin: transactionIds,
       },
@@ -146,20 +167,192 @@ export class JobRepository extends BaseRepository<EnforceEnvironmentQuery, JobEn
     selectNotification?: ProjectionType<NotificationEntity>;
     selectSubscriber?: ProjectionType<SubscriberEntity>;
     selectEnvironment?: ProjectionType<EnvironmentEntity>;
-  }): Promise<
-    JobEntity & {
-      template: NotificationTemplateEntity;
-      notification: NotificationEntity;
-      subscriber: SubscriberEntity;
-      environment: EnvironmentEntity;
-    }
-  > {
-    return Job.findOne(query, select)
+  }) {
+    const job = this.MongooseModel.findOne(query, select)
       .populate('template', selectTemplate)
       .populate('notification', selectNotification)
       .populate('subscriber', selectSubscriber)
       .populate('environment', selectEnvironment)
       .lean()
       .exec();
+
+    return job as unknown as JobEntityPopulated;
+  }
+
+  public async shouldDelayDigestJobOrMerge(
+    job: JobEntity,
+    digestKey?: string,
+    digestValue?: string | number,
+    digestMeta?: IDigestRegularMetadata
+  ): Promise<IDelayOrDigestJobResult> {
+    const isBackoff =
+      job.digest?.type === DigestTypeEnum.BACKOFF ||
+      (job.digest as IDigestRegularMetadata)?.backoff ||
+      (digestMeta?.backoff && digestMeta?.backoff);
+    const digestQuery = this.buildDigestQuery(digestKey, digestValue);
+
+    if (isBackoff) {
+      const trigger = await this.getTriggerJob(job, digestMeta, digestQuery);
+      if (!trigger) {
+        return {
+          digestResult: DigestCreationResultEnum.SKIPPED,
+        };
+      }
+
+      /**
+       * In case of 2 triggers happened concurrently,
+       * we want only one of those jobs to be skipped, while the second to be creating a digest.
+       * This is an issue, since we are relying on the Trigger job existence,
+       * that is created earlier in the workflow execution.
+       */
+      const lockedPriorityJob = isBefore(new Date(job.createdAt), new Date(trigger.createdAt));
+      if (lockedPriorityJob) {
+        return {
+          digestResult: DigestCreationResultEnum.SKIPPED,
+        };
+      }
+    }
+
+    const delayedDigestJob = await this._model.findOne(
+      {
+        status: JobStatusEnum.DELAYED,
+        type: StepTypeEnum.DIGEST,
+        _templateId: job._templateId,
+        _environmentId: this.convertStringToObjectId(job._environmentId),
+        _subscriberId: this.convertStringToObjectId(job._subscriberId),
+        ...digestQuery,
+      },
+      '_id _notificationId'
+    );
+
+    if (!delayedDigestJob) {
+      await this._model.updateOne(
+        {
+          _environmentId: job._environmentId,
+          _templateId: job._templateId,
+          _subscriberId: job._subscriberId,
+          _id: job._id,
+        },
+        {
+          $set: {
+            status: JobStatusEnum.DELAYED,
+          },
+        }
+      );
+
+      return {
+        activeDigestId: job._id,
+        digestResult: DigestCreationResultEnum.CREATED,
+      };
+    }
+
+    return {
+      activeDigestId: delayedDigestJob._id,
+      activeNotificationId: delayedDigestJob._notificationId?.toString(),
+      digestResult: DigestCreationResultEnum.MERGED,
+    };
+  }
+
+  private buildDigestQuery(digestKey: string | undefined, digestValue: string | number | undefined) {
+    const digestQueryV1 = digestKey ? { [`payload.${digestKey}`]: digestValue } : null;
+    // Digest key parsing is handled by the framework, leaving only the digest value available here
+    const digestQueryV2 = !digestKey && digestValue ? { [`digest.digestValue`]: digestValue } : null;
+    const digestQuery = digestQueryV1 || digestQueryV2;
+
+    return digestQuery || {};
+  }
+
+  private getBackoffDate(metadata: IDigestRegularMetadata | undefined) {
+    return sub(new Date(), {
+      [metadata?.backoffUnit as string]: metadata?.backoffAmount,
+    });
+  }
+
+  private getTriggerJob(job: JobEntity, metadata?: IDigestRegularMetadata, digestQuery?: Record<string, unknown>) {
+    const query = {
+      updatedAt: {
+        $gte: this.getBackoffDate(metadata),
+      },
+      _notificationId: {
+        $ne: job._notificationId,
+      },
+      _templateId: job._templateId,
+      status: JobStatusEnum.COMPLETED,
+      type: StepTypeEnum.TRIGGER,
+      _environmentId: job._environmentId,
+      _subscriberId: job._subscriberId,
+      ...digestQuery,
+    };
+
+    return this.findOne(query);
+  }
+
+  async updateAllChildJobStatus(job: JobEntity, status: JobStatusEnum, activeDigestId: string): Promise<JobEntity[]> {
+    const updatedJobs: JobEntity[] = [];
+
+    let childJob: JobEntity | null = await this.MongooseModel.findOneAndUpdate<JobEntity>(
+      {
+        _environmentId: job._environmentId,
+        _parentId: job._id,
+      },
+      {
+        $set: {
+          status,
+          _mergedDigestId: activeDigestId,
+        },
+      }
+    );
+
+    if (childJob) {
+      updatedJobs.push(childJob);
+    }
+
+    while (childJob) {
+      childJob = await this.MongooseModel.findOneAndUpdate<JobEntity>(
+        {
+          _environmentId: job._environmentId,
+          _parentId: childJob._id,
+        },
+        {
+          $set: {
+            status,
+            _mergedDigestId: activeDigestId,
+          },
+        }
+      );
+
+      if (childJob) {
+        updatedJobs.push(childJob);
+      }
+    }
+
+    return updatedJobs;
+  }
+
+  public async cancelPendingJobs({
+    _environmentId,
+    transactionId,
+    _subscriberId,
+    _templateId,
+  }: {
+    _environmentId: string;
+    transactionId: string;
+    _subscriberId: string;
+    _templateId: string;
+  }): Promise<IUpdateResult> {
+    return this.MongooseModel.updateMany(
+      {
+        _environmentId,
+        _subscriberId,
+        _templateId,
+        status: JobStatusEnum.PENDING,
+        transactionId,
+      },
+      {
+        $set: {
+          status: JobStatusEnum.CANCELED,
+        },
+      }
+    );
   }
 }

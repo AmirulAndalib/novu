@@ -1,11 +1,10 @@
-import * as mongoose from 'mongoose';
-import { Schema } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
-import { TopicSubscribersEntity } from './topic-subscribers.entity';
+import { TopicSubscribersDBModel } from './topic-subscribers.entity';
 
 import { schemaOptions } from '../schema-default.options';
 
-const topicSubscribersSchema = new Schema(
+const topicSubscribersSchema = new Schema<TopicSubscribersDBModel>(
   {
     _environmentId: {
       type: Schema.Types.ObjectId,
@@ -41,7 +40,26 @@ const topicSubscribersSchema = new Schema(
   schemaOptions
 );
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+topicSubscribersSchema.index({
+  _environmentId: 1,
+});
+
+topicSubscribersSchema.index({
+  _organizationId: 1,
+});
+
+topicSubscribersSchema.index({
+  _subscriberId: 1,
+});
+
+topicSubscribersSchema.index({
+  _topicId: 1,
+});
+
+topicSubscribersSchema.index({
+  topicKey: 1,
+});
+
 export const TopicSubscribers =
-  mongoose.models.TopicSubscribers ||
-  mongoose.model<TopicSubscribersEntity>('TopicSubscribers', topicSubscribersSchema);
+  (mongoose.models.TopicSubscribers as mongoose.Model<TopicSubscribersDBModel>) ||
+  mongoose.model<TopicSubscribersDBModel>('TopicSubscribers', topicSubscribersSchema);

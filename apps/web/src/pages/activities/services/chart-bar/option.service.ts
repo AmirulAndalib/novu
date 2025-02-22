@@ -12,8 +12,10 @@ export function getOptions(this: any, isTriggerSent: boolean, daysCount: number)
 
     onHover: (event, el) => {
       if (el.length > 0) {
+        // eslint-disable-next-line no-param-reassign
         event.native.target.style.cursor = 'pointer';
       } else {
+        // eslint-disable-next-line no-param-reassign
         event.native.target.style.cursor = 'default';
       }
     },
@@ -83,6 +85,7 @@ function getTooltipConfiguration() {
         tooltipEl.id = 'chartjs-tooltip';
         tooltipEl.innerHTML = '<table></table>';
         document.body.appendChild(tooltipEl);
+        tooltipEl.style.position = 'absolute';
       }
 
       // Hide if no tooltip

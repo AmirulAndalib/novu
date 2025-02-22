@@ -1,10 +1,9 @@
-import * as mongoose from 'mongoose';
-import { Schema, Document } from 'mongoose';
-import { schemaOptions } from '../schema-default.options';
-import { NotificationGroupEntity } from './notification-group.entity';
+import mongoose, { Schema } from 'mongoose';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-const NotificationGroupSchema = new Schema(
+import { schemaOptions } from '../schema-default.options';
+import { NotificationGroupDBModel } from './notification-group.entity';
+
+const NotificationGroupSchema = new Schema<NotificationGroupDBModel>(
   {
     name: Schema.Types.String,
     _organizationId: {
@@ -25,11 +24,14 @@ const NotificationGroupSchema = new Schema(
   schemaOptions
 );
 
-interface INotificationGroupDocument extends NotificationGroupEntity, Document {
-  _id: never;
-}
+NotificationGroupSchema.index({
+  _organizationId: 1,
+});
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+NotificationGroupSchema.index({
+  _environmentId: 1,
+});
+
 export const NotificationGroup =
-  mongoose.models.NotificationGroup ||
-  mongoose.model<INotificationGroupDocument>('NotificationGroup', NotificationGroupSchema);
+  (mongoose.models.NotificationGroup as mongoose.Model<NotificationGroupDBModel>) ||
+  mongoose.model<NotificationGroupDBModel>('NotificationGroup', NotificationGroupSchema);

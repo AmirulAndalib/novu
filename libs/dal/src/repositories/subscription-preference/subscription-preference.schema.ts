@@ -1,21 +1,15 @@
-import * as mongoose from 'mongoose';
-import { Schema, Document } from 'mongoose';
-import { schemaOptions } from '../schema-default.options';
-import { SubscriptionPreferenceEntity } from './subscription-preference.entity';
+import mongoose, { Schema } from 'mongoose';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-const SubscriptionPreferenceSchema = new Schema(
+import { schemaOptions } from '../schema-default.options';
+import { SubscriptionPreferenceDBModel } from './subscription-preference.entity';
+
+const SubscriptionPreferenceSchema = new Schema<SubscriptionPreferenceDBModel>(
   {
     name: Schema.Types.String,
   },
   schemaOptions
 );
 
-interface ISubscriptionPreferenceDocument extends SubscriptionPreferenceEntity, Document {
-  _id: never;
-}
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const SubscriptionPreference =
-  mongoose.models.SubscriptionPreference ||
-  mongoose.model<ISubscriptionPreferenceDocument>('SubscriptionPreference', SubscriptionPreferenceSchema);
+  (mongoose.models.SubscriptionPreference as mongoose.Model<SubscriptionPreferenceDBModel>) ||
+  mongoose.model<SubscriptionPreferenceDBModel>('SubscriptionPreference', SubscriptionPreferenceSchema);

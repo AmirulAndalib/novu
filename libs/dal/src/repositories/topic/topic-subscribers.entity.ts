@@ -1,3 +1,4 @@
+import type { ChangePropsValueType } from '../../types/helpers';
 import {
   EnvironmentId,
   ExternalSubscriberId,
@@ -15,7 +16,13 @@ export class TopicSubscribersEntity {
   _subscriberId: SubscriberId;
   _topicId: TopicId;
   topicKey: TopicKey;
+  // TODO: Rename to subscriberId, to align with workflowId and stepId that are also externally provided identifiers by Novu users
   externalSubscriberId: ExternalSubscriberId;
 }
+
+export type TopicSubscribersDBModel = ChangePropsValueType<
+  TopicSubscribersEntity,
+  '_environmentId' | '_organizationId' | '_subscriberId' | '_topicId'
+>;
 
 export type CreateTopicSubscribersEntity = Omit<TopicSubscribersEntity, '_id'>;

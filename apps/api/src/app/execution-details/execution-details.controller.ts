@@ -1,17 +1,20 @@
-import { ClassSerializerInterceptor, Controller, Get, Query, UseGuards, UseInterceptors } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
-import { IJwtPayload } from '@novu/shared';
+import { ClassSerializerInterceptor, Controller, Get, Query, UseInterceptors } from '@nestjs/common';
+import { ApiExcludeController, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { UserSessionData } from '@novu/shared';
+import { ExecutionDetailsResponseDto } from '@novu/application-generic';
 import { UserSession } from '../shared/framework/user.decorator';
-import { JwtAuthGuard } from '../auth/framework/auth.guard';
 import { ExternalApiAccessible } from '../auth/framework/external-api.decorator';
-import { GetExecutionDetails } from './usecases/get-execution-details/get-execution-details.usecase';
-import { GetExecutionDetailsCommand } from './usecases/get-execution-details/get-execution-details.command';
-import { ExecutionDetailsResponseDto } from './dtos/execution-details-response.dto';
+import { GetExecutionDetails, GetExecutionDetailsCommand } from './usecases/get-execution-details';
+import { ApiCommonResponses, ApiResponse } from '../shared/framework/response.decorator';
+import { ExecutionDetailsRequestDto } from './dtos/execution-details-request.dto';
+import { UserAuthentication } from '../shared/framework/swagger/api.key.security';
 
+@ApiCommonResponses()
 @Controller('/execution-details')
 @UseInterceptors(ClassSerializerInterceptor)
-@UseGuards(JwtAuthGuard)
+@UserAuthentication()
 @ApiTags('Execution Details')
+@ApiExcludeController()
 export class ExecutionDetailsController {
   constructor(private getExecutionDetails: GetExecutionDetails) {}
 
@@ -19,22 +22,19 @@ export class ExecutionDetailsController {
   @ApiOperation({
     summary: 'Get execution details',
   })
-  @ApiOkResponse({
-    type: [ExecutionDetailsResponseDto],
-  })
+  @ApiResponse(ExecutionDetailsResponseDto, 200, true)
   @ExternalApiAccessible()
   async getExecutionDetailsForNotification(
-    @UserSession() user: IJwtPayload,
-    @Query('notificationId') notificationId: string,
-    @Query('subscriberId') subscriberId: string
+    @UserSession() user: UserSessionData,
+    @Query() query: ExecutionDetailsRequestDto
   ): Promise<ExecutionDetailsResponseDto[]> {
     return this.getExecutionDetails.execute(
       GetExecutionDetailsCommand.create({
         organizationId: user.organizationId,
         environmentId: user.environmentId,
         userId: user._id,
-        notificationId,
-        subscriberId,
+        notificationId: query.notificationId,
+        subscriberId: query.subscriberId,
       })
     );
   }

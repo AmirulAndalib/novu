@@ -1,15 +1,17 @@
-import { AxiosInstance } from 'axios';
-import { ChannelTypeEnum } from '@novu/shared';
+import { AxiosError, AxiosInstance } from 'axios';
 
-export interface INovuConfiguration {
-  backendUrl?: string;
+export interface IRetryConfig {
+  initialDelay?: number;
+  waitMin?: number;
+  waitMax?: number;
+  retryMax?: number;
+  retryCondition?: (err: AxiosError) => boolean;
 }
 
-export interface IAttachmentOptions {
-  mime: string;
-  file: Buffer;
-  name?: string;
-  channels?: ChannelTypeEnum[];
+export interface INovuConfiguration {
+  apiKey?: string;
+  backendUrl?: string;
+  retryConfig?: IRetryConfig;
 }
 
 export class WithHttp {

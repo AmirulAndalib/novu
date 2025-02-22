@@ -1,4 +1,5 @@
-import { CreateExecutionDetails } from './create-execution-details/create-execution-details.usecase';
-import { GetExecutionDetails } from './get-execution-details/get-execution-details.usecase';
+import { BulkCreateExecutionDetails, CreateExecutionDetails } from '@novu/application-generic';
 
-export const USE_CASES = [CreateExecutionDetails, GetExecutionDetails];
+import { GetExecutionDetails } from './get-execution-details';
+
+export const USE_CASES = [CreateExecutionDetails, BulkCreateExecutionDetails, GetExecutionDetails];
