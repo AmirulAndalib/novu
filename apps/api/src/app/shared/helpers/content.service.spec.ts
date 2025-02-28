@@ -1,7 +1,16 @@
 import { expect } from 'chai';
-import { StepTypeEnum } from '@novu/shared';
-import { ContentService } from './content.service';
-import { INotificationTemplateStep } from '@novu/shared';
+import {
+  DelayTypeEnum,
+  DigestTypeEnum,
+  DigestUnitEnum,
+  FieldLogicalOperatorEnum,
+  FieldOperatorEnum,
+  FilterPartTypeEnum,
+  StepTypeEnum,
+  TriggerContextTypeEnum,
+  INotificationTemplateStep,
+} from '@novu/shared';
+import { ContentService } from '@novu/application-generic';
 
 describe('ContentService', function () {
   describe('replaceVariables', function () {
@@ -94,7 +103,7 @@ describe('ContentService', function () {
   describe('extractMessageVariables', function () {
     it('should not extract variables', function () {
       const contentService = new ContentService();
-      const variables = contentService.extractMessageVariables([
+      const { variables } = contentService.extractMessageVariables([
         {
           template: {
             type: StepTypeEnum.IN_APP,
@@ -108,7 +117,7 @@ describe('ContentService', function () {
 
     it('should extract subject variables', function () {
       const contentService = new ContentService();
-      const variables = contentService.extractMessageVariables([
+      const { variables } = contentService.extractMessageVariables([
         {
           template: {
             type: StepTypeEnum.EMAIL,
@@ -121,7 +130,25 @@ describe('ContentService', function () {
       expect(variables[0].name).to.include('firstName');
     });
 
-    it('should add $phone when SMS channel Exists', function () {
+    it('should extract reserved variables', function () {
+      const contentService = new ContentService();
+      const { variables, reservedVariables } = contentService.extractMessageVariables([
+        {
+          template: {
+            type: StepTypeEnum.EMAIL,
+            subject: 'Test {{firstName}} {{tenant.name}}',
+            content: [],
+          },
+        },
+      ]);
+      expect(variables.length).to.equal(1);
+      expect(variables[0].name).to.include('firstName');
+      expect(reservedVariables.length).to.equal(1);
+      expect(reservedVariables[0].type).to.eq(TriggerContextTypeEnum.TENANT);
+      expect(reservedVariables[0].variables[0].name).to.include('identifier');
+    });
+
+    it('should add phone when SMS channel Exists', function () {
       const contentService = new ContentService();
       const variables = contentService.extractSubscriberMessageVariables([
         {
@@ -142,7 +169,7 @@ describe('ContentService', function () {
       expect(variables[0]).to.equal('phone');
     });
 
-    it('should add $email when EMAIL channel Exists', function () {
+    it('should add email when EMAIL channel Exists', function () {
       const contentService = new ContentService();
       const variables = contentService.extractSubscriberMessageVariables([
         {
@@ -202,7 +229,7 @@ describe('ContentService', function () {
         },
       ] as INotificationTemplateStep[];
 
-      const variables = contentService.extractMessageVariables(messages);
+      const { variables } = contentService.extractMessageVariables(messages);
       const subscriberVariables = contentService.extractSubscriberMessageVariables(messages);
       const variablesNames = variables.map((variable) => variable.name);
 
@@ -216,7 +243,7 @@ describe('ContentService', function () {
 
     it('should extract in-app content variables', function () {
       const contentService = new ContentService();
-      const variables = contentService.extractMessageVariables([
+      const { variables } = contentService.extractMessageVariables([
         {
           template: {
             type: StepTypeEnum.IN_APP,
@@ -227,6 +254,83 @@ describe('ContentService', function () {
 
       expect(variables.length).to.equal(1);
       expect(variables[0].name).to.include('customVariables');
+    });
+
+    it('should extract i18n content variables', function () {
+      const contentService = new ContentService();
+      const { variables } = contentService.extractMessageVariables([
+        {
+          template: {
+            type: StepTypeEnum.IN_APP,
+            content: '{{i18n "group.key" var=customVar.subVar var2=secVar}}',
+          },
+        },
+      ]);
+
+      expect(variables.length).to.equal(2);
+
+      const variablesNames = variables.map((variable) => variable.name);
+      expect(variablesNames).to.include('customVar.subVar');
+      expect(variablesNames).to.include('secVar');
+    });
+
+    it('should extract action steps variables', function () {
+      const contentService = new ContentService();
+      const { variables } = contentService.extractMessageVariables([
+        {
+          template: {
+            type: StepTypeEnum.DELAY,
+            content: '',
+          },
+          metadata: { type: DelayTypeEnum.SCHEDULED, delayPath: 'sendAt' },
+        },
+        {
+          template: {
+            type: StepTypeEnum.DIGEST,
+            content: '',
+          },
+          metadata: { type: DigestTypeEnum.REGULAR, digestKey: 'path', unit: DigestUnitEnum.SECONDS, amount: 1 },
+        },
+      ]);
+
+      const variablesNames = variables.map((variable) => variable.name);
+
+      expect(variables.length).to.equal(2);
+      expect(variablesNames).to.include('sendAt');
+      expect(variablesNames).to.include('path');
+    });
+
+    it('should extract filter variables on payload', function () {
+      const contentService = new ContentService();
+      const { variables } = contentService.extractMessageVariables([
+        {
+          template: {
+            type: StepTypeEnum.EMAIL,
+            content: '{{name}}',
+          },
+          filters: [
+            {
+              isNegated: false,
+              type: 'GROUP',
+              value: FieldLogicalOperatorEnum.AND,
+              children: [
+                {
+                  on: FilterPartTypeEnum.PAYLOAD,
+                  field: 'counter',
+                  value: 'test value',
+                  operator: FieldOperatorEnum.EQUAL,
+                },
+              ],
+            },
+          ],
+        },
+      ]);
+
+      const variablesNames = variables.map((variable) => variable.name);
+
+      expect(variables.length).to.equal(2);
+      expect(variablesNames).to.include('name');
+      expect(variablesNames).to.include('counter');
     });
 
     it('should not extract variables reserved for the system', function () {
@@ -245,10 +349,105 @@ describe('ContentService', function () {
           },
         },
       ] as INotificationTemplateStep[];
-      const extractVariables = contentService.extractMessageVariables(messages);
+      const { variables: extractVariables } = contentService.extractMessageVariables(messages);
 
       expect(extractVariables.length).to.equal(1);
       expect(extractVariables[0].name).to.include('lastName');
+    });
+  });
+
+  describe('extractStepVariables', () => {
+    it('should not fail if no filters available', () => {
+      const contentService = new ContentService();
+      const messages = [
+        {
+          template: {
+            type: StepTypeEnum.EMAIL,
+            subject: 'Test {{subscriber.firstName}}',
+            content: [
+              {
+                content: 'Test of {{subscriber.firstName}} {{lastName}}',
+                type: 'text',
+              },
+            ],
+          },
+        },
+      ] as INotificationTemplateStep[];
+      const variables = contentService.extractStepVariables(messages);
+
+      expect(variables.length).to.equal(0);
+    });
+
+    it('should not fail if filters are set as non array', () => {
+      const contentService = new ContentService();
+      const messages = [
+        {
+          template: {
+            type: StepTypeEnum.EMAIL,
+            subject: 'Test {{subscriber.firstName}}',
+            content: [
+              {
+                content: 'Test of {{subscriber.firstName}} {{lastName}}',
+                type: 'text',
+              },
+            ],
+          },
+          filters: {},
+        },
+      ] as INotificationTemplateStep[];
+      const variables = contentService.extractStepVariables(messages);
+
+      expect(variables.length).to.equal(0);
+    });
+
+    it('should not fail if filters are an empty array', () => {
+      const contentService = new ContentService();
+      const messages = [
+        {
+          template: {
+            type: StepTypeEnum.EMAIL,
+            subject: 'Test {{subscriber.firstName}}',
+            content: [
+              {
+                content: 'Test of {{subscriber.firstName}} {{lastName}}',
+                type: 'text',
+              },
+            ],
+          },
+          filters: [],
+        },
+      ] as INotificationTemplateStep[];
+      const variables = contentService.extractStepVariables(messages);
+
+      expect(variables.length).to.equal(0);
+    });
+
+    it('should not fail if filters have some wrong settings like missing children in filters', () => {
+      const contentService = new ContentService();
+      const messages = [
+        {
+          template: {
+            type: StepTypeEnum.EMAIL,
+            subject: 'Test {{subscriber.firstName}}',
+            content: [
+              {
+                content: 'Test of {{subscriber.firstName}} {{lastName}}',
+                type: 'text',
+              },
+            ],
+          },
+          filters: [
+            {
+              isNegated: false,
+              type: 'GROUP',
+              value: FieldLogicalOperatorEnum.AND,
+            },
+          ],
+        },
+      ] as INotificationTemplateStep[];
+      const variables = contentService.extractStepVariables(messages);
+
+      expect(variables.length).to.equal(0);
     });
   });
 });

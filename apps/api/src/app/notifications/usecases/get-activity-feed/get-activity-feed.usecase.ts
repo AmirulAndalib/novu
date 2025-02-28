@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { SubscriberRepository, NotificationRepository } from '@novu/dal';
-import { ActivitiesResponseDto } from '../../dtos/activities-response.dto';
+import { NotificationFeedItemEntity, NotificationRepository, SubscriberRepository } from '@novu/dal';
+import { Instrument } from '@novu/application-generic';
+import { ActivitiesResponseDto, ActivityNotificationResponseDto } from '../../dtos/activities-response.dto';
 import { GetActivityFeedCommand } from './get-activity-feed.command';
+import { mapFeedItemToDto } from './map-feed-item-to.dto';
 
 @Injectable()
 export class GetActivityFeed {
@@ -11,41 +13,66 @@ export class GetActivityFeed {
   ) {}
 
   async execute(command: GetActivityFeedCommand): Promise<ActivitiesResponseDto> {
-    const LIMIT = 10;
+    let subscriberIds: string[] | undefined;
 
-    let subscriberIds: string[] = [];
-
-    if (command.search || command.emails) {
-      const foundSubscribers = await this.subscribersRepository.searchSubscribers(
-        command.environmentId,
-        command.search,
-        command.emails
-      );
-
-      subscriberIds = foundSubscribers.map((subscriber) => subscriber._id);
-
-      if (subscriberIds.length === 0) {
-        return {
-          page: 0,
-          totalCount: 0,
-          pageSize: LIMIT,
-          data: [],
-        };
-      }
+    if (command.search || command.emails?.length || command.subscriberIds?.length) {
+      subscriberIds = await this.findSubscribers(command);
+    }
+    if (subscriberIds && subscriberIds.length === 0) {
+      return {
+        page: 0,
+        hasMore: false,
+        pageSize: command.limit,
+        data: [],
+      };
     }
 
-    const { data: notifications, totalCount } = await this.notificationRepository.getFeed(
-      command.environmentId,
-      { channels: command.channels, templates: command.templates, subscriberIds, transactionId: command.transactionId },
-      command.page * LIMIT,
-      LIMIT
-    );
+    const notifications: NotificationFeedItemEntity[] = await this.getFeedNotifications(command, subscriberIds);
+
+    const data = notifications.reduce<ActivityNotificationResponseDto[]>((memo, notification) => {
+      // TODO: Identify why mongo returns an array of undefined or null values. Is it a data issue?
+      if (notification) {
+        memo.push(mapFeedItemToDto(notification));
+      }
+
+      return memo;
+    }, []);
 
     return {
       page: command.page,
-      totalCount,
-      pageSize: LIMIT,
-      data: notifications,
+      hasMore: notifications?.length === command.limit,
+      pageSize: command.limit,
+      data,
     };
+  }
+
+  @Instrument()
+  private async findSubscribers(command: GetActivityFeedCommand): Promise<string[]> {
+    return await this.subscribersRepository.searchSubscribers(
+      command.environmentId,
+      command.subscriberIds,
+      command.emails,
+      command.search
+    );
+  }
+
+  @Instrument()
+  private async getFeedNotifications(
+    command: GetActivityFeedCommand,
+    subscriberIds?: string[]
+  ): Promise<NotificationFeedItemEntity[]> {
+    return await this.notificationRepository.getFeed(
+      command.environmentId,
+      {
+        channels: command.channels,
+        templates: command.templates,
+        subscriberIds: subscriberIds || [],
+        transactionId: command.transactionId,
+        after: command.after,
+        before: command.before,
+      },
+      command.page * command.limit,
+      command.limit
+    );
   }
 }

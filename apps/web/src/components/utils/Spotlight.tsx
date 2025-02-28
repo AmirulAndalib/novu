@@ -1,49 +1,56 @@
 import { SpotlightProvider } from '@mantine/spotlight';
-import { useContext, useEffect } from 'react';
+import { Activity, Bolt, Box, Brand, Chat, IconLogout, Repeat, Settings, Team } from '@novu/design-system';
+import { UTM_CAMPAIGN_QUERY_PARAM } from '@novu/shared';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Bolt, Box, Settings, Repeat, Team, Brand, Chat } from '../../design-system/icons';
-import { SpotlightContext } from '../../store/spotlightContext';
+
+import { ROUTES } from '../../constants/routes';
+import useThemeChange from '../../hooks/useThemeChange';
+import { useSpotlightContext } from '../providers/SpotlightProvider';
+import useStyles from './Spotlight.styles';
 
 export const SpotLight = ({ children }) => {
   const navigate = useNavigate();
-  const { items, addItem } = useContext(SpotlightContext);
+  const { items, addItem } = useSpotlightContext();
+  const { toggleColorScheme, Icon } = useThemeChange();
+  const { classes } = useStyles();
 
   useEffect(() => {
     addItem([
       {
         id: 'navigate-templates',
-        title: 'Go to Notification Template',
-        onTrigger: () => navigate('/templates'),
+        title: 'Go to Workflows',
+        onTrigger: () => navigate(ROUTES.WORKFLOWS),
         icon: <Bolt />,
       },
       {
         id: 'navigate-integration',
         title: 'Go to Integrations',
-        onTrigger: () => navigate('/integrations'),
+        onTrigger: () => navigate(ROUTES.INTEGRATIONS),
         icon: <Box />,
       },
       {
         id: 'navigate-changes',
         title: 'Go to Changes',
-        onTrigger: () => navigate('/changes'),
+        onTrigger: () => navigate(ROUTES.CHANGES),
         icon: <Repeat />,
       },
       {
         id: 'navigate-settings',
         title: 'Go to Settings',
-        onTrigger: () => navigate('/settings'),
+        onTrigger: () => navigate(ROUTES.SETTINGS),
         icon: <Settings />,
       },
       {
         id: 'navigate-activities',
         title: 'Go to Activities',
-        onTrigger: () => navigate('/activities'),
+        onTrigger: () => navigate(ROUTES.ACTIVITIES),
         icon: <Activity />,
       },
       {
         id: 'navigate-team-members',
         title: 'Go to Team Members',
-        onTrigger: () => navigate('/team'),
+        onTrigger: () => navigate(ROUTES.TEAM),
         icon: <Team />,
       },
       {
@@ -56,7 +63,7 @@ export const SpotLight = ({ children }) => {
         id: 'navigate-docs',
         title: 'Go to Documentation',
         onTrigger: () => {
-          window?.open('https://docs.novu.co/', '_blank')?.focus();
+          window?.open(`https://docs.novu.co${UTM_CAMPAIGN_QUERY_PARAM}`, '_blank')?.focus();
         },
       },
       {
@@ -74,11 +81,19 @@ export const SpotLight = ({ children }) => {
         },
         icon: <Chat />,
       },
+      {
+        id: 'toggle-theme',
+        title: 'Toggle Theme',
+        icon: <Icon title="color-scheme-preference-icon" />,
+        onTrigger: () => {
+          toggleColorScheme();
+        },
+      },
     ]);
-  }, []);
+  }, [navigate, addItem, Icon, toggleColorScheme]);
 
   return (
-    <SpotlightProvider limit={7} shortcut={['mod + K']} actions={items}>
+    <SpotlightProvider limit={7} shortcut={['mod + K']} actions={items} classNames={classes}>
       {children}
     </SpotlightProvider>
   );

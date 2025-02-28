@@ -1,32 +1,8 @@
 import { Module } from '@nestjs/common';
-import {
-  DalService,
-  UserRepository,
-  OrganizationRepository,
-  EnvironmentRepository,
-  ExecutionDetailsRepository,
-  NotificationTemplateRepository,
-  SubscriberRepository,
-  NotificationRepository,
-  MessageRepository,
-  MemberRepository,
-  IntegrationRepository,
-  JobRepository,
-} from '@novu/dal';
+import { AnalyticsService } from '@novu/application-generic';
+import { DalService, ExecutionDetailsRepository, MessageRepository, IntegrationRepository } from '@novu/dal';
 
-const DAL_MODELS = [
-  UserRepository,
-  OrganizationRepository,
-  EnvironmentRepository,
-  ExecutionDetailsRepository,
-  NotificationTemplateRepository,
-  SubscriberRepository,
-  NotificationRepository,
-  MessageRepository,
-  MemberRepository,
-  IntegrationRepository,
-  JobRepository,
-];
+const DAL_MODELS = [ExecutionDetailsRepository, MessageRepository, IntegrationRepository];
 
 const dalService = new DalService();
 
@@ -40,6 +16,16 @@ const PROVIDERS = [
     },
   },
   ...DAL_MODELS,
+  {
+    provide: AnalyticsService,
+    useFactory: async () => {
+      const analyticsService = new AnalyticsService(process.env.SEGMENT_TOKEN);
+
+      await analyticsService.initialize();
+
+      return analyticsService;
+    },
+  },
 ];
 
 @Module({

@@ -20,6 +20,12 @@ const defaultLightTheme: INovuTheme = {
     markAllAsReadButtonColor: colors.B60,
   },
   popover: { arrowColor: colors.white },
+  actionsMenu: {
+    dropdownColor: colors.white,
+    hoverColor: colors.B98,
+    fontColor: colors.B40,
+    dotsButtonColor: colors.B70,
+  },
   notificationItem: {
     read: { background: colors.B98, fontColor: colors.B60, timeMarkFontColor: colors.B80 },
     unread: {
@@ -51,7 +57,7 @@ const defaultLightTheme: INovuTheme = {
     },
   },
   footer: { logoTextColor: 'black', logoPrefixFontColor: colors.B70 },
-  loaderColor: colors.vertical,
+  loaderColor: colors.loader,
 };
 
 const defaultDarkTheme: INovuTheme = {
@@ -69,6 +75,12 @@ const defaultDarkTheme: INovuTheme = {
     markAllAsReadButtonColor: colors.B60,
   },
   popover: { arrowColor: colors.B15 },
+  actionsMenu: {
+    dropdownColor: colors.B20,
+    hoverColor: colors.B30,
+    fontColor: colors.white,
+    dotsButtonColor: colors.B40,
+  },
   notificationItem: {
     read: { background: colors.B17, fontColor: colors.white, timeMarkFontColor: colors.B40 },
     unread: {
@@ -100,11 +112,11 @@ const defaultDarkTheme: INovuTheme = {
     },
   },
   footer: { logoTextColor: colors.white, logoPrefixFontColor: colors.B40 },
-  loaderColor: colors.vertical,
+  loaderColor: colors.loader,
 };
 
 const defaultCommonTheme: ICommonTheme = {
-  fontFamily: 'Lato',
+  fontFamily: 'inherit',
 };
 
 const defaultNotificationBellLightTheme: INotificationBellColors = {

@@ -7,6 +7,15 @@ interface IQueryKeys {
   getFeeds: string;
   getLayoutsList: string;
   getLayoutById: string;
+  activeIntegrations: string;
+  integrationsList: string;
+  blueprintsList: string;
+  getApiKeys: string;
+  getInAppActive: string;
+  getTemplateById: (templateId?: string) => string;
+  tenantsList: string;
+  getTenantByIdentifier: (tenantIdentifier?: string) => string;
+  getWorkflowPreferences: (workflowId: string) => string;
 }
 
 export const QueryKeys: IQueryKeys = Object.freeze({
@@ -18,4 +27,13 @@ export const QueryKeys: IQueryKeys = Object.freeze({
   getFeeds: 'getFeeds',
   getLayoutsList: 'getLayoutsList',
   getLayoutById: 'getLayoutById',
+  activeIntegrations: 'activeIntegrations',
+  integrationsList: 'integrationsList',
+  blueprintsList: 'blueprintsList',
+  getApiKeys: 'getApiKeys',
+  getInAppActive: 'inAppActive',
+  getTemplateById: (templateId?: string) => `notificationById:${templateId}`,
+  tenantsList: 'tenantsList',
+  getTenantByIdentifier: (tenantIdentifier?: string) => `tenantByIdentifier:${tenantIdentifier}`,
+  getWorkflowPreferences: (workflowId: string) => `workflowChannelPreferences:${workflowId}`,
 });

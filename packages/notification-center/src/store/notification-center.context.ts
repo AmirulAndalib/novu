@@ -1,5 +1,8 @@
 import React from 'react';
+
 import { IMessage, ButtonTypeEnum } from '@novu/shared';
+import { IUserPreferenceSettings } from '@novu/client';
+
 import { INotificationCenterContext, ITab } from '../shared/interfaces';
 
 export const NotificationCenterContext = React.createContext<INotificationCenterContext>({
@@ -7,6 +10,8 @@ export const NotificationCenterContext = React.createContext<INotificationCenter
   onNotificationClick: (notification: IMessage) => {},
   onUnseenCountChanged: (unseenCount: number) => {},
   onActionClick: (identifier: string, type: ButtonTypeEnum, message: IMessage) => {},
+  onTabClick: (tab: ITab) => {},
+  preferenceFilter: (userPreference: IUserPreferenceSettings) => {},
   isLoading: true,
   header: null,
   footer: null,
@@ -15,5 +20,5 @@ export const NotificationCenterContext = React.createContext<INotificationCenter
   actionsResultBlock: null,
   tabs: [],
   showUserPreferences: true,
-  onTabClick: (tab: ITab) => {},
+  allowedNotificationActions: true,
 } as any);

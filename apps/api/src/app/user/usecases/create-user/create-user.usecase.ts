@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { UserEntity, UserRepository } from '@novu/dal';
-import { CreateUserCommand } from './create-user.dto';
+import { CreateUserCommand } from './create-user.command';
 
 @Injectable()
 export class CreateUser {
@@ -9,13 +9,14 @@ export class CreateUser {
   async execute(data: CreateUserCommand): Promise<UserEntity> {
     const user = new UserEntity();
 
-    user.email = data.email ? data.email.toLowerCase() : null;
-    user.firstName = data.firstName ? data.firstName.toLowerCase() : null;
+    user.email = data.email ? data.email.toLowerCase() : '';
+    user.firstName = data.firstName ? data.firstName.toLowerCase() : '';
     user.lastName = data.lastName ? data.lastName.toLowerCase() : data.lastName;
     user.profilePicture = data.picture;
     user.showOnBoarding = true;
     user.tokens = [
       {
+        username: data.auth.username,
         providerId: data.auth.profileId,
         provider: data.auth.provider,
         accessToken: data.auth.accessToken,

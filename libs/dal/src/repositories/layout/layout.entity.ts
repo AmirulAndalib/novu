@@ -2,12 +2,14 @@ import {
   ChannelTypeEnum,
   EnvironmentId,
   ITemplateVariable,
-  OrganizationId,
   LayoutDescription,
   LayoutId,
+  LayoutIdentifier,
   LayoutName,
+  OrganizationId,
   UserId,
 } from './types';
+import type { ChangePropsValueType } from '../../types/helpers';
 
 export class LayoutEntity {
   _id: LayoutId;
@@ -16,6 +18,7 @@ export class LayoutEntity {
   _creatorId: UserId;
   _parentId?: LayoutId;
   name: LayoutName;
+  identifier: LayoutIdentifier;
   description?: LayoutDescription;
   variables?: ITemplateVariable[];
   content: string;
@@ -26,3 +29,8 @@ export class LayoutEntity {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type LayoutDBModel = ChangePropsValueType<
+  LayoutEntity,
+  '_environmentId' | '_organizationId' | '_creatorId' | '_parentId'
+>;

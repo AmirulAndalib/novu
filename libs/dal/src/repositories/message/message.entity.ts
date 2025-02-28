@@ -1,8 +1,12 @@
-import { ChannelTypeEnum, IMessageCTA, IActor } from '@novu/shared';
 import { Exclude } from 'class-transformer';
+import { ChannelTypeEnum, IActor, IMessageCTA } from '@novu/shared';
+
 import { IEmailBlock } from '../message-template';
 import { SubscriberEntity } from '../subscriber';
 import { NotificationTemplateEntity } from '../notification-template';
+import type { OrganizationId } from '../organization';
+import type { EnvironmentId } from '../environment';
+import type { ChangePropsValueType } from '../../types/helpers';
 
 export class MessageEntity {
   _id: string;
@@ -11,9 +15,9 @@ export class MessageEntity {
 
   _environmentId: string;
 
-  _messageTemplateId: string;
+  _messageTemplateId: EnvironmentId;
 
-  _organizationId: string;
+  _organizationId: OrganizationId;
 
   _notificationId: string;
 
@@ -23,11 +27,17 @@ export class MessageEntity {
 
   subscriber?: SubscriberEntity;
 
+  actorSubscriber?: SubscriberEntity;
+
   template?: NotificationTemplateEntity;
 
-  templateIdentifier?: string;
+  templateIdentifier: string;
 
-  createdAt?: string;
+  createdAt: string;
+
+  updatedAt: string;
+
+  archivedAt?: string;
 
   content: string | IEmailBlock[];
 
@@ -41,13 +51,19 @@ export class MessageEntity {
 
   read: boolean;
 
+  archived: boolean;
+
+  deleted: boolean;
+
   email?: string;
 
   phone?: string;
 
   chatWebhookUrl?: string;
 
-  providerId?: string;
+  directWebhookUrl?: string;
+
+  providerId: string;
 
   deviceTokens?: string[];
 
@@ -72,9 +88,30 @@ export class MessageEntity {
 
   payload: Record<string, unknown>;
 
+  data?: Record<string, unknown>;
+
   overrides: Record<string, unknown>;
 
   identifier?: string;
 
   actor?: IActor;
+
+  _actorId?: string;
+
+  tags?: string[];
+
+  avatar?: string;
 }
+
+export type MessageDBModel = ChangePropsValueType<
+  MessageEntity,
+  | '_templateId'
+  | '_environmentId'
+  | '_messageTemplateId'
+  | '_organizationId'
+  | '_notificationId'
+  | '_jobId'
+  | '_subscriberId'
+  | '_feedId'
+  | '_actorId'
+>;

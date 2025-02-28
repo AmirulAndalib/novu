@@ -1,67 +1,50 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { DalService, SubscriberRepository, NotificationRepository, MessageRepository } from '@novu/dal';
 import {
-  DalService,
-  UserRepository,
-  OrganizationRepository,
-  EnvironmentRepository,
-  NotificationTemplateRepository,
-  SubscriberRepository,
-  NotificationRepository,
-  MessageRepository,
-  MemberRepository,
-} from '@novu/dal';
-import { AnalyticsService } from '@novu/application-generic';
+  AnalyticsService,
+  DalServiceHealthIndicator,
+  WebSocketsInMemoryProviderService,
+  QueuesModule,
+} from '@novu/application-generic';
 
-import { QueueService } from './queue';
+import { JobTopicNameEnum } from '@novu/shared';
 import { SubscriberOnlineService } from './subscriber-online';
 
-export const ANALYTICS_SERVICE = 'AnalyticsService';
+const DAL_MODELS = [SubscriberRepository, NotificationRepository, MessageRepository];
 
-const DAL_MODELS = [
-  UserRepository,
-  OrganizationRepository,
-  EnvironmentRepository,
-  NotificationTemplateRepository,
-  SubscriberRepository,
-  NotificationRepository,
-  MessageRepository,
-  MemberRepository,
-];
+const dalService = {
+  provide: DalService,
+  useFactory: async () => {
+    const service = new DalService();
+    await service.connect(String(process.env.MONGO_URL));
 
-const dalService = new DalService();
+    return service;
+  },
+};
+
+const analyticsService = {
+  provide: AnalyticsService,
+  useFactory: async () => {
+    const service = new AnalyticsService(process.env.SEGMENT_TOKEN, 500);
+    await service.initialize();
+
+    return service;
+  },
+};
 
 const PROVIDERS = [
-  {
-    provide: QueueService,
-    useFactory: () => {
-      return new QueueService();
-    },
-  },
-  {
-    provide: DalService,
-    useFactory: async () => {
-      await dalService.connect(process.env.MONGO_URL as string);
-
-      return dalService;
-    },
-  },
-  ...DAL_MODELS,
+  analyticsService,
+  dalService,
+  DalServiceHealthIndicator,
   SubscriberOnlineService,
-  {
-    provide: AnalyticsService,
-    useFactory: async () => {
-      const analyticsService = new AnalyticsService(process.env.SEGMENT_TOKEN);
-
-      await analyticsService.initialize();
-
-      return analyticsService;
-    },
-  },
+  WebSocketsInMemoryProviderService,
+  ...DAL_MODELS,
 ];
 
 @Module({
   imports: [
+    QueuesModule.forRoot([JobTopicNameEnum.WEB_SOCKETS]),
     JwtModule.register({
       secretOrKeyProvider: () => process.env.JWT_SECRET as string,
       signOptions: {
@@ -70,6 +53,6 @@ const PROVIDERS = [
     }),
   ],
   providers: [...PROVIDERS],
-  exports: [...PROVIDERS, JwtModule],
+  exports: [...PROVIDERS, JwtModule, QueuesModule],
 })
 export class SharedModule {}

@@ -1,22 +1,25 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import styled from '@emotion/styled';
 
+import { Button, Tabs } from '@novu/design-system';
 import PageHeader from '../../components/layout/components/PageHeader';
 import PageContainer from '../../components/layout/components/PageContainer';
-import { Button, Tabs } from '../../design-system';
-import PageMeta from '../../components/layout/components/PageMeta';
-import { usePromotedChanges, useUnPromotedChanges } from '../../api/hooks/useEnvironmentChanges';
-import { ChangesTable } from '../../components/changes/ChangesTableLayout';
+import { useEnvironment, usePromotedChanges, useUnPromotedChanges } from '../../hooks';
+import { ChangesTable } from './components/ChangesTableLayout';
 import { bulkPromoteChanges } from '../../api/changes';
 import { QueryKeys } from '../../api/query.keys';
 import { errorMessage, successMessage } from '../../utils/notifications';
+import { ROUTES } from '../../constants/routes';
 
 const PENDING = 'Pending';
 const HISTORY = 'History';
 
 export function PromoteChangesPage() {
   const [page, setPage] = useState<number>(0);
+  const navigate = useNavigate();
+  const { readonly } = useEnvironment();
 
   const { changes, isLoadingChanges, changesPageSize, totalChangesCount } = useUnPromotedChanges(page);
   const { history, isLoadingHistory, historyPageSize, totalHistoryCount } = usePromotedChanges(page);
@@ -38,11 +41,16 @@ export function PromoteChangesPage() {
     setPage(pageIndex);
   }
 
+  if (readonly) {
+    navigate(ROUTES.HOME);
+  }
+
   const menuTabs = [
     {
       value: PENDING,
       content: (
         <ChangesTable
+          key={page}
           loading={isLoadingChanges}
           changes={changes}
           handleTableChange={handleTableChange}
@@ -57,6 +65,7 @@ export function PromoteChangesPage() {
       value: HISTORY,
       content: (
         <ChangesTable
+          key={page}
           loading={isLoadingHistory}
           changes={history}
           handleTableChange={handleTableChange}
@@ -70,8 +79,7 @@ export function PromoteChangesPage() {
   ];
 
   return (
-    <PageContainer>
-      <PageMeta title="Changes" />
+    <PageContainer title="Changes">
       <PageHeader
         title="Changes"
         actions={
@@ -88,7 +96,7 @@ export function PromoteChangesPage() {
         }
       />
       <StyledTabs>
-        <Tabs menuTabs={menuTabs} defaultValue={PENDING} />
+        <Tabs menuTabs={menuTabs} defaultValue={PENDING} onTabChange={() => setPage(0)} />
       </StyledTabs>
     </PageContainer>
   );

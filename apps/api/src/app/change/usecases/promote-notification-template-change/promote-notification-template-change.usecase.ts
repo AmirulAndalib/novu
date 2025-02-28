@@ -1,30 +1,59 @@
 import { forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   ChangeRepository,
+  EnvironmentRepository,
+  MessageTemplateRepository,
+  NotificationGroupRepository,
+  NotificationStepData,
+  NotificationStepEntity,
   NotificationTemplateEntity,
   NotificationTemplateRepository,
-  MessageTemplateRepository,
-  NotificationStepEntity,
-  NotificationGroupRepository,
 } from '@novu/dal';
-import { ChangeEntityTypeEnum } from '@novu/shared';
-
+import {
+  buildWorkflowPreferencesFromPreferenceChannels,
+  ChangeEntityTypeEnum,
+  DEFAULT_WORKFLOW_PREFERENCES,
+  IPreferenceChannels,
+  PreferencesTypeEnum,
+} from '@novu/shared';
+import {
+  buildGroupedBlueprintsKey,
+  DeletePreferencesCommand,
+  DeletePreferencesUseCase,
+  InvalidateCacheService,
+  UpsertPreferences,
+  UpsertUserWorkflowPreferencesCommand,
+  UpsertWorkflowPreferencesCommand,
+} from '@novu/application-generic';
 import { ApplyChange, ApplyChangeCommand } from '../apply-change';
 import { PromoteTypeChangeCommand } from '../promote-type-change.command';
-import { CacheKeyPrefixEnum, InvalidateCacheService } from '../../../shared/services/cache';
 
+/**
+ * Promote a notification template change to a workflow
+ *
+ * TODO: update this use-case to use the following use-cases which fully handle
+ * the workflow creation, update and deletion:
+ * - CreateWorkflow
+ * - UpdateWorkflow
+ * - DeleteWorkflow
+ */
 @Injectable()
 export class PromoteNotificationTemplateChange {
   constructor(
     private invalidateCache: InvalidateCacheService,
     private notificationTemplateRepository: NotificationTemplateRepository,
+    private environmentRepository: EnvironmentRepository,
     private messageTemplateRepository: MessageTemplateRepository,
     private notificationGroupRepository: NotificationGroupRepository,
     @Inject(forwardRef(() => ApplyChange)) private applyChange: ApplyChange,
-    private changeRepository: ChangeRepository
+    private changeRepository: ChangeRepository,
+    private upsertPreferences: UpsertPreferences,
+    private deletePreferences: DeletePreferencesUseCase
   ) {}
 
   async execute(command: PromoteTypeChangeCommand) {
+    await this.invalidateBlueprints(command);
+
     const item = await this.notificationTemplateRepository.findOne({
       _environmentId: command.environmentId,
       _parentId: command.item._id,
@@ -35,7 +64,10 @@ export class PromoteNotificationTemplateChange {
     const messages = await this.messageTemplateRepository.find({
       _environmentId: command.environmentId,
       _parentId: {
-        $in: newItem.steps ? newItem.steps.map((step) => step._templateId) : [],
+        $in: (newItem.steps || []).flatMap((step) => [
+          step._templateId,
+          ...(step.variants || []).flatMap((variant) => variant._templateId),
+        ]),
       },
     });
 
@@ -46,17 +78,49 @@ export class PromoteNotificationTemplateChange {
         return message._parentId === step._templateId;
       });
 
+      if (step.variants && step.variants.length > 0) {
+        // eslint-disable-next-line no-param-reassign
+        step.variants = step.variants
+          ?.map(mapNewVariantItem)
+          .filter((variant): variant is NotificationStepData => variant !== undefined);
+      }
+
       if (!oldMessage) {
         missingMessages.push(step._templateId);
 
         return undefined;
       }
-      step._templateId = oldMessage._id;
+
+      if (step?._templateId && oldMessage._id) {
+        // eslint-disable-next-line no-param-reassign
+        step._templateId = oldMessage._id;
+      }
 
       return step;
     };
 
-    const steps = newItem.steps ? newItem.steps.map(mapNewStepItem).filter((step) => step !== undefined) : [];
+    const mapNewVariantItem = (step: NotificationStepData) => {
+      const oldMessage = messages.find((message) => {
+        return message._parentId === step._templateId;
+      });
+
+      if (!oldMessage) {
+        missingMessages.push(step._templateId);
+
+        return undefined;
+      }
+
+      if (step?._templateId && oldMessage._id) {
+        // eslint-disable-next-line no-param-reassign
+        step._templateId = oldMessage._id;
+      }
+
+      return step;
+    };
+
+    const steps = newItem.steps
+      ? newItem.steps.map(mapNewStepItem).filter((step): step is NotificationStepEntity => step !== undefined)
+      : [];
 
     if (missingMessages.length > 0 && steps.length > 0 && item) {
       Logger.error(
@@ -96,12 +160,16 @@ export class PromoteNotificationTemplateChange {
 
     if (!notificationGroup) {
       throw new NotFoundException(
-        `Notification Group: ${newItem.name} with the ${newItem._notificationGroupId} Id not found`
+        `Notification Group Id ${newItem._notificationGroupId} not found, Notification Template: ${newItem.name}`
       );
     }
 
     if (!item) {
-      return this.notificationTemplateRepository.create({
+      if (newItem.deleted) {
+        return;
+      }
+
+      const newNotificationTemplate: Partial<NotificationTemplateEntity> = {
         name: newItem.name,
         active: newItem.active,
         draft: newItem.draft,
@@ -118,7 +186,15 @@ export class PromoteNotificationTemplateChange {
         _notificationGroupId: notificationGroup._id,
         isBlueprint: command.organizationId === this.blueprintOrganizationId,
         blueprintId: newItem.blueprintId,
-      });
+        ...(newItem.data ? { data: newItem.data } : {}),
+      };
+
+      const createdTemplate = await this.notificationTemplateRepository.create(
+        newNotificationTemplate as NotificationTemplateEntity
+      );
+      await this.updateWorkflowPreferences(createdTemplate._id, command, newItem.critical, newItem.preferenceSettings);
+
+      return createdTemplate;
     }
 
     const count = await this.notificationTemplateRepository.count({
@@ -129,18 +205,12 @@ export class PromoteNotificationTemplateChange {
     if (count === 0) {
       await this.notificationTemplateRepository.delete({ _environmentId: command.environmentId, _id: item._id });
 
+      await this.deleteWorkflowPreferences(item._id, command);
+
       return;
     }
 
-    this.invalidateCache.clearCache({
-      storeKeyPrefix: CacheKeyPrefixEnum.NOTIFICATION_TEMPLATE,
-      credentials: {
-        _id: item._id,
-        environmentId: command.environmentId,
-      },
-    });
-
-    return await this.notificationTemplateRepository.update(
+    const updatedTemplate = await this.notificationTemplateRepository.update(
       {
         _environmentId: command.environmentId,
         _id: item._id,
@@ -157,11 +227,87 @@ export class PromoteNotificationTemplateChange {
         steps,
         _notificationGroupId: notificationGroup._id,
         isBlueprint: command.organizationId === this.blueprintOrganizationId,
+        ...(newItem.data ? { data: newItem.data } : {}),
       }
+    );
+    await this.updateWorkflowPreferences(item._id, command, newItem.critical, newItem.preferenceSettings);
+
+    return updatedTemplate;
+  }
+
+  private async updateWorkflowPreferences(
+    workflowId: string,
+    command: PromoteTypeChangeCommand,
+    critical: boolean,
+    preferenceSettings: IPreferenceChannels
+  ) {
+    await this.upsertPreferences.upsertUserWorkflowPreferences(
+      UpsertUserWorkflowPreferencesCommand.create({
+        templateId: workflowId,
+        preferences: buildWorkflowPreferencesFromPreferenceChannels(critical, preferenceSettings),
+        environmentId: command.environmentId,
+        organizationId: command.organizationId,
+        userId: command.userId,
+      })
+    );
+
+    await this.upsertPreferences.upsertWorkflowPreferences(
+      UpsertWorkflowPreferencesCommand.create({
+        templateId: workflowId,
+        preferences: DEFAULT_WORKFLOW_PREFERENCES,
+        environmentId: command.environmentId,
+        organizationId: command.organizationId,
+      })
     );
   }
 
-  private get blueprintOrganizationId(): string {
+  private async deleteWorkflowPreferences(workflowId: string, command: PromoteTypeChangeCommand) {
+    await this.deletePreferences.execute(
+      DeletePreferencesCommand.create({
+        templateId: workflowId,
+        environmentId: command.environmentId,
+        organizationId: command.organizationId,
+        userId: command.userId,
+        type: PreferencesTypeEnum.USER_WORKFLOW,
+      })
+    );
+
+    await this.deletePreferences.execute(
+      DeletePreferencesCommand.create({
+        templateId: workflowId,
+        environmentId: command.environmentId,
+        organizationId: command.organizationId,
+        userId: command.userId,
+        type: PreferencesTypeEnum.WORKFLOW_RESOURCE,
+      })
+    );
+  }
+
+  private async getProductionEnvironmentId(organizationId: string) {
+    const productionEnvironmentId = (
+      await this.environmentRepository.findOrganizationEnvironments(organizationId)
+    )?.find((env) => env.name === 'Production')?._id;
+
+    if (!productionEnvironmentId) {
+      throw new NotFoundException('Production environment not found');
+    }
+
+    return productionEnvironmentId;
+  }
+
+  private get blueprintOrganizationId() {
     return NotificationTemplateRepository.getBlueprintOrganizationId();
+  }
+
+  private async invalidateBlueprints(command: PromoteTypeChangeCommand) {
+    if (command.organizationId === this.blueprintOrganizationId) {
+      const productionEnvironmentId = await this.getProductionEnvironmentId(this.blueprintOrganizationId);
+
+      if (productionEnvironmentId) {
+        await this.invalidateCache.invalidateByKey({
+          key: buildGroupedBlueprintsKey(productionEnvironmentId),
+        });
+      }
+    }
   }
 }

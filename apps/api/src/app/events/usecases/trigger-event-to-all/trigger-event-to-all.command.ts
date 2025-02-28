@@ -1,5 +1,6 @@
 import { IsDefined, IsObject, IsOptional, IsString } from 'class-validator';
-import { ISubscribersDefine } from '@novu/node';
+import { TriggerRecipientSubscriber, TriggerTenantContext } from '@novu/shared';
+
 import { EnvironmentWithUserCommand } from '../../../shared/commands/project.command';
 
 export class TriggerEventToAllCommand extends EnvironmentWithUserCommand {
@@ -19,5 +20,12 @@ export class TriggerEventToAllCommand extends EnvironmentWithUserCommand {
   overrides: Record<string, Record<string, unknown>>;
 
   @IsOptional()
-  actor?: ISubscribersDefine | null;
+  actor?: TriggerRecipientSubscriber | null;
+
+  @IsOptional()
+  tenant?: TriggerTenantContext | null;
+
+  @IsOptional()
+  @IsString()
+  bridgeUrl?: string;
 }

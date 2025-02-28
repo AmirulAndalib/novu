@@ -1,5 +1,13 @@
-import { EnvironmentWithSubscriber } from '../../../shared/commands/project.command';
+import { IsArray, IsBoolean, IsDefined, IsOptional, IsString } from 'class-validator';
+import { EnvironmentWithSubscriber } from '@novu/application-generic';
 
 export class GetSubscriberPreferenceCommand extends EnvironmentWithSubscriber {
-  subscriberId: string;
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsBoolean()
+  @IsDefined()
+  includeInactiveChannels: boolean;
 }

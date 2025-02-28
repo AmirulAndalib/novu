@@ -1,127 +1,127 @@
-import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { useContext, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { Center, LoadingOverlay } from '@mantine/core';
 import { IGetInviteResponseDto } from '@novu/shared';
 
+import { colors, Text, Button, PageMeta } from '@novu/design-system';
 import { getInviteTokenData } from '../../api/invitation';
 import AuthLayout from '../../components/layout/components/AuthLayout';
-import AuthContainer from '../../components/layout/components/AuthContainer';
-import { SignUpForm } from '../../components/auth/SignUpForm';
-import { colors, Text, Button } from '../../design-system';
-import { AuthContext } from '../../store/authContext';
-import { useAcceptInvite } from '../../components/auth/useAcceptInvite';
-import { When } from '../../components/utils/When';
+import { SignUpForm } from './components/SignUpForm';
+import { useAuth } from '../../hooks/useAuth';
+import { ROUTES } from '../../constants/routes';
+import { useAcceptInvite } from './components/useAcceptInvite';
+import { LoginForm } from './components/LoginForm';
 
 export default function InvitationPage() {
+  const queryClient = useQueryClient();
+  const { currentUser, logout } = useAuth();
+  const { token: invitationToken } = useParams<{ token: string }>();
+  const { isLoading: isAcceptingInvite, acceptInvite } = useAcceptInvite();
   const navigate = useNavigate();
-  const { token, logout, currentUser } = useContext(AuthContext);
-  const location = useLocation();
-  const isLoggedIn = !!token;
-  const { token: tokenParam } = useParams<{ token: string }>();
-  const { isLoading: loadingAcceptInvite, submitToken } = useAcceptInvite();
-  const { data, isInitialLoading } = useQuery<IGetInviteResponseDto, IGetInviteResponseDto>(
+  const { data, isLoading } = useQuery<IGetInviteResponseDto, IGetInviteResponseDto>(
     ['getInviteTokenData'],
-    () => getInviteTokenData(tokenParam || ''),
+    () => getInviteTokenData(invitationToken || ''),
     {
-      enabled: !!tokenParam,
+      enabled: !!invitationToken,
+      refetchOnWindowFocus: false,
     }
   );
   const inviterFirstName = data?.inviter?.firstName || '';
   const organizationName = data?.organization.name || '';
-
-  const existingUser = tokenParam && data?._userId;
-  const invalidCurrentUser = existingUser && currentUser && currentUser._id !== data?._userId;
-
-  const acceptToken = async () => {
-    if (existingUser && currentUser && currentUser._id === data?._userId && isLoggedIn) {
-      const result = await submitToken(tokenParam as string, true);
-      if (result) navigate('/templates');
-    }
-  };
-
-  const logoutWhenActiveSession = () => {
-    logout();
-    navigate(location.pathname);
-  };
+  const existingUserId = data?._userId;
+  const isLoggedInAsInvitedUser = !!(existingUserId && currentUser && currentUser._id === existingUserId);
+  const Form = existingUserId ? LoginForm : SignUpForm;
 
   useEffect(() => {
-    acceptToken();
-  }, [tokenParam, data, currentUser]);
+    (async () => {
+      if (invitationToken && isLoggedInAsInvitedUser) {
+        await acceptInvite(invitationToken);
+        navigate(ROUTES.WORKFLOWS);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acceptInvite, invitationToken, isLoggedInAsInvitedUser]);
+
+  useEffect(() => {
+    return () => {
+      queryClient.removeQueries(['getInviteTokenData']);
+    };
+  }, [queryClient]);
+
+  if (isLoading) {
+    return (
+      <LoadingOverlay
+        visible
+        overlayColor={colors.B30}
+        loaderProps={{
+          color: colors.error,
+        }}
+      />
+    );
+  }
+
+  /*
+   * TODO: The moment the invited user signs-in or up, currentUser is set and the UI flickers to the Active Session screen,
+   * before the next rendering cycle that will actually redirect the next page. We will tackle this in a separate PR.
+   */
+  if (currentUser) {
+    const title = 'Accept invite';
+
+    return (
+      <AuthLayout title={title}>
+        <PageMeta title={title} />
+        <Center inline mb={40} mt={20}>
+          <Text size="lg" color={colors.B60}>
+            {isLoggedInAsInvitedUser && isAcceptingInvite ? (
+              <p>Accepting invitation...</p>
+            ) : (
+              <p>
+                The invitation is not valid for user with email ${currentUser.email}. Please log in with the right user.
+              </p>
+            )}
+          </Text>
+        </Center>
+        <Button data-test-id="success-screen-reset" onClick={() => logout()} inherit>
+          Log out
+        </Button>
+        <Center mt={20}>
+          <Text mr={10} size="md" color={colors.B60}>
+            Go to
+          </Text>
+          <Link to="/quickstart">
+            <Text>Dashboard</Text>
+          </Link>
+        </Center>
+      </AuthLayout>
+    );
+  }
+
+  const title = existingUserId ? 'Sign In & Accept Invite' : 'Get Started';
 
   return (
-    <AuthLayout>
-      {isLoggedIn && (
-        <AuthContainer
-          title="Active Session!"
-          customDescription={
-            <Center inline mb={40} mt={20}>
-              <Text size="lg" color={colors.B60}>
-                <When truthy={invalidCurrentUser && !loadingAcceptInvite}>
-                  <p>The invite is not valid for the current user. Please log in with the right user.</p>
-                </When>
-
-                <When truthy={!invalidCurrentUser && !loadingAcceptInvite}>
-                  <p>Your session is currently active, use another browser or switch to incognito mode.</p>
-                  <p>Log out instead?</p>
-                </When>
-
-                <When truthy={loadingAcceptInvite}>
-                  <p>Accepting invite...</p>
-                </When>
-              </Text>
-            </Center>
-          }
-        >
-          <Button data-test-id="success-screen-reset" onClick={logoutWhenActiveSession} inherit>
-            Log out
-          </Button>
-          <Center mt={20}>
-            <Text mr={10} size="md" color={colors.B60}>
-              Go to
-            </Text>
-            <Link to="/quickstart">
-              <Text>Dashboard</Text>
-            </Link>
-          </Center>
-        </AuthContainer>
-      )}
-
-      {!isLoggedIn && (
-        <AuthContainer
-          title="Get Started"
-          customDescription={
-            inviterFirstName && organizationName ? (
-              <Center inline mb={60} mt={20}>
-                <Text size="lg" mr={4} color={colors.B60}>
-                  You've been invited by
-                </Text>
-                <Text size="lg" weight="bold" mr={4}>
-                  {inviterFirstName[0].toUpperCase() + inviterFirstName.slice(1)}
-                </Text>
-                <Text size="lg" mr={4} color={colors.B60}>
-                  to join
-                </Text>
-                <Text size="lg" weight="bold">
-                  {organizationName}
-                </Text>
-                <Text size="lg" color={colors.B60}>
-                  .
-                </Text>
-              </Center>
-            ) : undefined
-          }
-        >
-          <LoadingOverlay
-            visible={isInitialLoading}
-            overlayColor={colors.B30}
-            loaderProps={{
-              color: colors.error,
-            }}
-          />
-          {!isInitialLoading && <SignUpForm email={data?.email} token={tokenParam} />}
-        </AuthContainer>
-      )}
+    <AuthLayout title={title}>
+      <PageMeta title={title} />
+      inviterFirstName && organizationName && (
+      <Center inline mb={60} mt={20} data-test-id="invitation-description">
+        <Text size="lg" mr={4} color={colors.B60}>
+          {"You've been invited by "}
+        </Text>
+        <Text size="lg" weight="bold" mr={4}>
+          {inviterFirstName[0].toUpperCase() + inviterFirstName.slice(1)}
+        </Text>
+        <Text size="lg" mr={4} color={colors.B60}>
+          {' to join '}
+        </Text>
+        <Text size="lg" weight="bold">
+          {organizationName}
+        </Text>
+        <Text size="lg" color={colors.B60}>
+          .
+        </Text>
+      </Center>
+      )
+      <Form email={data?.email} invitationToken={invitationToken} />
     </AuthLayout>
   );
 }

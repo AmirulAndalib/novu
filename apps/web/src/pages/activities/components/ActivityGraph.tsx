@@ -4,7 +4,7 @@ import { BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, Title
 import { Bar, getElementAtEvent } from 'react-chartjs-2';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useMantineTheme } from '@mantine/core';
-import * as cloneDeep from 'lodash.clonedeep';
+import cloneDeep from 'lodash.clonedeep';
 import { differenceInDays, format, isSameDay, subDays } from 'date-fns';
 
 import { MessageContainer } from './MessageContainer';
@@ -73,6 +73,7 @@ const Wrapper = styled.div`
   display: flex;
   align-items: center;
   flex-direction: column;
+  position: relative;
 `;
 
 function fillDateGaps(data: IActivityGraphStats[]): IActivityGraphStats[] {

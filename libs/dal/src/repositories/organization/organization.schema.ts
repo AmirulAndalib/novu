@@ -1,12 +1,17 @@
-import * as mongoose from 'mongoose';
-import { Schema, Document } from 'mongoose';
-import { schemaOptions } from '../schema-default.options';
-import { OrganizationEntity, PartnerTypeEnum } from './organization.entity';
+import mongoose, { Schema } from 'mongoose';
+import { ApiServiceLevelEnum } from '@novu/shared';
 
-const organizationSchema = new Schema(
+import { schemaOptions } from '../schema-default.options';
+import { OrganizationDBModel, PartnerTypeEnum } from './organization.entity';
+
+const organizationSchema = new Schema<OrganizationDBModel>(
   {
     name: Schema.Types.String,
     logo: Schema.Types.String,
+    apiServiceLevel: {
+      type: Schema.Types.String,
+      enum: ApiServiceLevelEnum,
+    },
     branding: {
       fontColor: Schema.Types.String,
       contentBackground: Schema.Types.String,
@@ -30,14 +35,37 @@ const organizationSchema = new Schema(
       ],
       select: false,
     },
+    defaultLocale: Schema.Types.String,
+    domain: Schema.Types.String,
+    language: [Schema.Types.String],
+    productUseCases: {
+      delay: {
+        type: Schema.Types.Boolean,
+        default: false,
+      },
+      translation: {
+        type: Schema.Types.Boolean,
+        default: false,
+      },
+      digest: {
+        type: Schema.Types.Boolean,
+        default: false,
+      },
+      multi_channel: {
+        type: Schema.Types.Boolean,
+        default: false,
+      },
+      in_app: {
+        type: Schema.Types.Boolean,
+        default: false,
+      },
+    },
+    externalId: Schema.Types.String,
+    stripeCustomerId: Schema.Types.String,
   },
   schemaOptions
 );
 
-interface IOrganizationDocument extends OrganizationEntity, Document {
-  _id: never;
-}
-
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export const Organization =
-  mongoose.models.Organization || mongoose.model<IOrganizationDocument>('Organization', organizationSchema);
+  (mongoose.models.Organization as mongoose.Model<OrganizationDBModel>) ||
+  mongoose.model<OrganizationDBModel>('Organization', organizationSchema);

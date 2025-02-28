@@ -3,7 +3,7 @@ import React, { FunctionComponent } from 'react';
 import { NovuProvider } from '../novu-provider';
 import { reactToWebComponent } from '../../utils';
 import type { NotificationCenterComponentProps, PopoverWrapperProps } from './notification-center-component.types';
-import { NotificationCenter } from '../notification-center/NotificationCenter';
+import { NotificationCenter } from '../notification-center';
 
 /*
  * This array represents the public API of the web component.
@@ -18,6 +18,7 @@ export const NOTIFICATION_CENTER_CONTENT_PROPS = [
   'stores',
   'tabs',
   'showUserPreferences',
+  'allowedNotificationActions',
   'theme',
   'styles',
   'colorScheme',
@@ -32,6 +33,7 @@ export const NOTIFICATION_CENTER_CONTENT_PROPS = [
   'actionClicked',
   'onTabClick',
   'tabClicked',
+  'preferenceFilter',
 ];
 
 export type NotificationCenterContentComponentProps = Omit<NotificationCenterComponentProps, 'popover'>;
@@ -45,6 +47,7 @@ export const NotificationCenterContentComponent: FunctionComponent<NotificationC
   stores,
   tabs,
   showUserPreferences,
+  allowedNotificationActions,
   theme,
   styles,
   colorScheme = 'dark',
@@ -59,6 +62,7 @@ export const NotificationCenterContentComponent: FunctionComponent<NotificationC
   onActionClick = actionClicked,
   tabClicked,
   onTabClick = tabClicked,
+  preferenceFilter,
 }) => {
   return (
     <NovuProvider
@@ -80,7 +84,9 @@ export const NotificationCenterContentComponent: FunctionComponent<NotificationC
         onActionClick={onActionClick}
         tabs={tabs}
         showUserPreferences={showUserPreferences}
+        allowedNotificationActions={allowedNotificationActions}
         onTabClick={onTabClick}
+        preferenceFilter={preferenceFilter}
       />
     </NovuProvider>
   );

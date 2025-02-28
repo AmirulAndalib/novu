@@ -1,16 +1,14 @@
+import { PageMeta } from '@novu/design-system';
+import { SignUpForm } from './components/SignUpForm';
 import AuthLayout from '../../components/layout/components/AuthLayout';
-import { SignUpForm } from '../../components/auth/SignUpForm';
-import AuthContainer from '../../components/layout/components/AuthContainer';
-import { useBlueprint } from '../../hooks/useBlueprint';
+
+const title = 'Sign up';
 
 export default function SignUpPage() {
-  useBlueprint();
-
   return (
-    <AuthLayout>
-      <AuthContainer title="Sign Up" description="Hello and welcome! Sign up to the best notifications platform ever">
-        <SignUpForm />
-      </AuthContainer>
+    <AuthLayout title={title}>
+      <PageMeta title={title} />
+      <SignUpForm />
     </AuthLayout>
   );
 }

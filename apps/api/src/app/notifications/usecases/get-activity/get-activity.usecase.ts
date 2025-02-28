@@ -1,16 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { NotificationRepository } from '@novu/dal';
 import { AnalyticsService } from '@novu/application-generic';
 
 import { ActivityNotificationResponseDto } from '../../dtos/activities-response.dto';
 import { GetActivityCommand } from './get-activity.command';
-import { ANALYTICS_SERVICE } from '../../../shared/shared.module';
+import { mapFeedItemToDto } from '../get-activity-feed/map-feed-item-to.dto';
 
 @Injectable()
 export class GetActivity {
   constructor(
     private notificationRepository: NotificationRepository,
-    @Inject(ANALYTICS_SERVICE) private analyticsService: AnalyticsService
+    private analyticsService: AnalyticsService
   ) {}
 
   async execute(command: GetActivityCommand): Promise<ActivityNotificationResponseDto> {
@@ -18,10 +18,12 @@ export class GetActivity {
       _organization: command.organizationId,
     });
 
-    return this.notificationRepository.getFeedItem(
+    const feedItem = await this.notificationRepository.getFeedItem(
       command.notificationId,
       command.environmentId,
       command.organizationId
-    ) as Promise<ActivityNotificationResponseDto>;
+    );
+
+    return mapFeedItemToDto(feedItem);
   }
 }

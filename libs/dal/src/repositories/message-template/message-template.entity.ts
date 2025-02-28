@@ -1,18 +1,29 @@
-import { StepTypeEnum, IMessageCTA, TemplateVariableTypeEnum, IActor } from '@novu/shared';
+import type {
+  ControlSchemas,
+  EnvironmentId,
+  IActor,
+  IMessageCTA,
+  IMessageTemplate,
+  JSONSchemaDto,
+  MessageTemplateContentType,
+  OrganizationId,
+  StepTypeEnum,
+} from '@novu/shared';
 
 import { IEmailBlock, ITemplateVariable } from './types';
+import type { ChangePropsValueType } from '../../types/helpers';
 
-export class MessageTemplateEntity {
-  _id: string;
+export class MessageTemplateEntity implements IMessageTemplate {
+  _id?: string;
 
-  _environmentId: string;
+  _environmentId: EnvironmentId;
 
-  _organizationId: string;
+  _organizationId: OrganizationId;
 
   _creatorId: string;
 
   // TODO: Due a circular dependency I can't import LayoutId from Layout.
-  _layoutId: string | null;
+  _layoutId?: string | null;
 
   type: StepTypeEnum;
 
@@ -20,7 +31,7 @@ export class MessageTemplateEntity {
 
   content: string | IEmailBlock[];
 
-  contentType?: 'editor' | 'customHtml';
+  contentType?: MessageTemplateContentType;
 
   active?: boolean;
 
@@ -30,7 +41,11 @@ export class MessageTemplateEntity {
 
   name?: string;
 
+  stepId?: string;
+
   preheader?: string;
+
+  senderName?: string;
 
   _feedId?: string;
 
@@ -39,4 +54,19 @@ export class MessageTemplateEntity {
   _parentId?: string;
 
   actor?: IActor;
+
+  deleted?: boolean;
+
+  controls?: ControlSchemas;
+
+  output?: {
+    schema: JSONSchemaDto;
+  };
+
+  code?: string;
 }
+
+export type MessageTemplateDBModel = ChangePropsValueType<
+  MessageTemplateEntity,
+  '_environmentId' | '_organizationId' | '_creatorId' | '_layoutId' | '_feedId' | '_parentId'
+>;

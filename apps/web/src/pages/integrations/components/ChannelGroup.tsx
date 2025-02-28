@@ -1,11 +1,12 @@
 import { Grid } from '@mantine/core';
+import { Title } from '@novu/design-system';
+import { ChannelTypeEnum, EmailProviderIdEnum, SmsProviderIdEnum } from '@novu/shared';
 import { ProviderCard } from './ProviderCard';
-import { Title } from '../../../design-system';
-import { ChannelTypeEnum, EmailProviderIdEnum } from '@novu/shared';
-import { IIntegratedProvider } from '../IntegrationsStorePage';
+
+import type { IIntegratedProvider } from '../types';
 import { NovuIntegrationCard } from './NovuIntegrationCard';
 import { When } from '../../../components/utils/When';
-import { CONTEXT_PATH, IS_DOCKER_HOSTED } from '../../../config';
+import { CONTEXT_PATH, IS_SELF_HOSTED } from '../../../config';
 
 export function ChannelGroup({
   title,
@@ -27,7 +28,7 @@ export function ChannelGroup({
       <Grid.Col span={12} data-test-id={`integration-group-${title.toLowerCase()}`}>
         <Title size={2}>{title}</Title>
       </Grid.Col>
-      <When truthy={channel === ChannelTypeEnum.EMAIL && !IS_DOCKER_HOSTED}>
+      <When truthy={channel === ChannelTypeEnum.EMAIL && !IS_SELF_HOSTED}>
         <Grid.Col sm={12} xs={6} md={4} lg={3}>
           <NovuIntegrationCard
             provider={{
@@ -43,11 +44,40 @@ export function ChannelGroup({
                 0,
               connected: true,
               logoFileName: {
-                light: CONTEXT_PATH + '/static/images/logo-formerly-light-bg.png',
-                dark: CONTEXT_PATH + '/static/images/logo-formerly-dark-bg.png',
+                dark: `${CONTEXT_PATH}/static/images/logo-light.webp`,
+                light: `${CONTEXT_PATH}/static/images/logo.webp`,
               },
               betaVersion: false,
               novu: true,
+              primary: false,
+            }}
+            onConnectClick={handlerOnConnectClick}
+          />
+        </Grid.Col>
+      </When>
+
+      <When truthy={channel === ChannelTypeEnum.SMS && !IS_SELF_HOSTED}>
+        <Grid.Col sm={12} xs={6} md={4} lg={3}>
+          <NovuIntegrationCard
+            provider={{
+              providerId: SmsProviderIdEnum.Novu,
+              integrationId: '',
+              displayName: 'Novu SMS Provider',
+              channel: ChannelTypeEnum.SMS,
+              credentials: [],
+              docReference: '',
+              comingSoon: false,
+              active:
+                providers.filter((provider) => provider.active && provider.channel === ChannelTypeEnum.SMS).length ===
+                0,
+              connected: true,
+              logoFileName: {
+                dark: `${CONTEXT_PATH}/static/images/logo-light.webp`,
+                light: `${CONTEXT_PATH}/static/images/logo.webp`,
+              },
+              betaVersion: false,
+              novu: true,
+              primary: false,
             }}
             onConnectClick={handlerOnConnectClick}
           />

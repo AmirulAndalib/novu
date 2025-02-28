@@ -1,28 +1,27 @@
 import { Controller, Get } from '@nestjs/common';
-import { HealthCheck, HealthCheckService, HttpHealthIndicator } from '@nestjs/terminus';
-import { DalService } from '@novu/dal';
+import { HealthCheck, HealthCheckResult, HealthCheckService } from '@nestjs/terminus';
+import { DalServiceHealthIndicator } from '@novu/application-generic';
+
 import { version } from '../../package.json';
 
 @Controller('v1/health-check')
 export class HealthController {
   constructor(
     private healthCheckService: HealthCheckService,
-    private healthIndicator: HttpHealthIndicator,
-    private dalService: DalService
+    private dalHealthIndicator: DalServiceHealthIndicator
   ) {}
 
   @Get()
   @HealthCheck()
-  async healthCheck() {
+  async healthCheck(): Promise<HealthCheckResult> {
     const result = await this.healthCheckService.check([
-      async () => {
-        return {
-          apiVersion: {
-            version,
-            status: 'up',
-          },
-        };
-      },
+      async () => ({
+        apiVersion: {
+          version,
+          status: 'up',
+        },
+      }),
+      () => this.dalHealthIndicator.isHealthy(),
     ]);
 
     return result;

@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const prePopulateEnv = (folders, folderBasePath, exampleEnvFilePath = 'src/.example.env', envFilePath = 'src/.env') => {
-  for (const folder of folders) {
+const prePopulateEnv = (apps, folderBasePath, exampleEnvFilePath = 'src/.example.env', envFilePath = 'src/.env') => {
+  console.log(`Pre-populating .env files from .example.env for [${apps.join(',')}]`);
+  for (const folder of apps) {
     const exists = fs.existsSync(path.resolve(`${folderBasePath}/${folder}/${envFilePath}`));
     if (!exists) {
       console.log(`Populating ${folderBasePath}/${folder} with .env file`);
@@ -15,17 +16,10 @@ const prePopulateEnv = (folders, folderBasePath, exampleEnvFilePath = 'src/.exam
 };
 
 (async () => {
-  const apps = ['api', 'ws'];
-  const exampleApps = ['vue-notification-center-example'];
   const appsBasePath = `${__dirname}/../apps`;
-  const exampleAppsBasePath = `${__dirname}/../examples`;
-
   console.log('----------------------------------------');
-  console.log('Pre-populating .env files from .example.env');
-
-  prePopulateEnv(apps, appsBasePath);
-  prePopulateEnv(exampleApps, exampleAppsBasePath, '.example.env', '.env');
-
+  prePopulateEnv(['api', 'ws', 'worker'], appsBasePath);
+  prePopulateEnv(['web', 'widget'], appsBasePath, '.example.env', '.env');
   console.log('Finished populating .env files');
   console.log('----------------------------------------');
 })();

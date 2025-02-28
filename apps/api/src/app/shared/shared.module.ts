@@ -1,38 +1,79 @@
+/* eslint-disable global-require */
 import { Module } from '@nestjs/common';
 import {
+  ChangeRepository,
+  ControlValuesRepository,
   DalService,
-  UserRepository,
-  OrganizationRepository,
   EnvironmentRepository,
   ExecutionDetailsRepository,
-  NotificationTemplateRepository,
-  SubscriberRepository,
-  NotificationRepository,
-  MessageRepository,
-  NotificationGroupRepository,
-  MessageTemplateRepository,
-  MemberRepository,
-  LayoutRepository,
-  LogRepository,
-  IntegrationRepository,
-  ChangeRepository,
-  JobRepository,
   FeedRepository,
-  SubscriberPreferenceRepository,
+  IntegrationRepository,
+  JobRepository,
+  LayoutRepository,
+  MemberRepository,
+  MessageRepository,
+  MessageTemplateRepository,
+  NotificationGroupRepository,
+  NotificationRepository,
+  NotificationTemplateRepository,
+  OrganizationRepository,
+  PreferencesRepository,
+  SubscriberRepository,
+  TenantRepository,
   TopicRepository,
   TopicSubscribersRepository,
+  UserRepository,
+  WorkflowOverrideRepository,
+  CommunityUserRepository,
+  CommunityMemberRepository,
+  CommunityOrganizationRepository,
 } from '@novu/dal';
-import { AnalyticsService } from '@novu/application-generic';
-
-import { QueueService } from './services/queue';
 import {
-  AzureBlobStorageService,
-  GCSStorageService,
-  S3StorageService,
-  StorageService,
-} from './services/storage/storage.service';
-import { CacheService, InvalidateCacheService } from './services/cache';
-import { ConnectionOptions } from 'tls';
+  analyticsService,
+  cacheService,
+  CacheServiceHealthIndicator,
+  ComputeJobWaitDurationService,
+  CreateExecutionDetails,
+  createNestLoggingModuleOptions,
+  DalServiceHealthIndicator,
+  distributedLockService,
+  ExecuteBridgeRequest,
+  featureFlagsService,
+  GetDecryptedSecretKey,
+  InvalidateCacheService,
+  LoggerModule,
+  QueuesModule,
+  storageService,
+} from '@novu/application-generic';
+
+import { isClerkEnabled, JobTopicNameEnum } from '@novu/shared';
+import { JwtModule } from '@nestjs/jwt';
+import packageJson from '../../../package.json';
+
+function getDynamicAuthProviders() {
+  if (isClerkEnabled()) {
+    const eeAuthPackage = require('@novu/ee-auth');
+
+    return eeAuthPackage.injectEEAuthProviders();
+  } else {
+    const userRepositoryProvider = {
+      provide: 'USER_REPOSITORY',
+      useClass: CommunityUserRepository,
+    };
+
+    const memberRepositoryProvider = {
+      provide: 'MEMBER_REPOSITORY',
+      useClass: CommunityMemberRepository,
+    };
+
+    const organizationRepositoryProvider = {
+      provide: 'ORGANIZATION_REPOSITORY',
+      useClass: CommunityOrganizationRepository,
+    };
+
+    return [userRepositoryProvider, memberRepositoryProvider, organizationRepositoryProvider];
+  }
+}
 
 const DAL_MODELS = [
   UserRepository,
@@ -47,85 +88,78 @@ const DAL_MODELS = [
   NotificationGroupRepository,
   MemberRepository,
   LayoutRepository,
-  LogRepository,
   IntegrationRepository,
   ChangeRepository,
   JobRepository,
   FeedRepository,
-  SubscriberPreferenceRepository,
   TopicRepository,
   TopicSubscribersRepository,
+  TenantRepository,
+  WorkflowOverrideRepository,
+  ControlValuesRepository,
+  PreferencesRepository,
 ];
 
-function getStorageServiceClass() {
-  switch (process.env.STORAGE_SERVICE) {
-    case 'GCS':
-      return GCSStorageService;
-    case 'AZURE':
-      return AzureBlobStorageService;
-    default:
-      return S3StorageService;
-  }
-}
-
-const dalService = new DalService();
-
-export const ANALYTICS_SERVICE = 'AnalyticsService';
-
-const cacheService = {
-  provide: CacheService,
+const dalService = {
+  provide: DalService,
   useFactory: async () => {
-    return new CacheService({
-      host: process.env.REDIS_CACHE_SERVICE_HOST,
-      port: process.env.REDIS_CACHE_SERVICE_PORT || '6379',
-      ttl: process.env.REDIS_CACHE_TTL,
-      password: process.env.REDIS_CACHE_PASSWORD,
-      connectTimeout: process.env.REDIS_CACHE_CONNECTION_TIMEOUT,
-      keepAlive: process.env.REDIS_CACHE_KEEP_ALIVE,
-      family: process.env.REDIS_CACHE_FAMILY,
-      keyPrefix: process.env.REDIS_CACHE_KEY_PREFIX,
-      tls: process.env.REDIS_CACHE_SERVICE_TLS as ConnectionOptions,
-    });
+    const service = new DalService();
+    await service.connect(process.env.MONGO_URL || '.');
+
+    return service;
   },
 };
 
 const PROVIDERS = [
-  {
-    provide: QueueService,
-    useFactory: () => {
-      return new QueueService();
-    },
-  },
-  {
-    provide: DalService,
-    useFactory: async () => {
-      await dalService.connect(process.env.MONGO_URL);
-
-      return dalService;
-    },
-  },
+  analyticsService,
   cacheService,
+  CacheServiceHealthIndicator,
+  ComputeJobWaitDurationService,
+  dalService,
+  DalServiceHealthIndicator,
+  distributedLockService,
+  featureFlagsService,
   InvalidateCacheService,
+  storageService,
   ...DAL_MODELS,
-  {
-    provide: StorageService,
-    useClass: getStorageServiceClass(),
-  },
-  {
-    provide: ANALYTICS_SERVICE,
-    useFactory: async () => {
-      const analyticsService = new AnalyticsService(process.env.SEGMENT_TOKEN);
-
-      await analyticsService.initialize();
-
-      return analyticsService;
-    },
-  },
+  CreateExecutionDetails,
+  ExecuteBridgeRequest,
+  GetDecryptedSecretKey,
 ];
 
+const IMPORTS = [
+  QueuesModule.forRoot([JobTopicNameEnum.WEB_SOCKETS, JobTopicNameEnum.WORKFLOW, JobTopicNameEnum.INBOUND_PARSE_MAIL]),
+  LoggerModule.forRoot(
+    createNestLoggingModuleOptions({
+      serviceName: packageJson.name,
+      version: packageJson.version,
+    })
+  ),
+];
+
+if (process.env.NODE_ENV === 'test') {
+  /**
+   * This is here only because of the tests. These providers are available at AppModule level,
+   * but since in tests we are often importing just the SharedModule and not the entire AppModule
+   * we need to make sure these providers are available.
+   *
+   * TODO: modify tests to either import all services they need explicitly, or remove repositories from SharedModule,
+   * and then import SharedModule + repositories explicitly.
+   */
+  PROVIDERS.push(...getDynamicAuthProviders());
+  IMPORTS.push(
+    JwtModule.register({
+      secret: `${process.env.JWT_SECRET}`,
+      signOptions: {
+        expiresIn: 360000,
+      },
+    })
+  );
+}
+
 @Module({
-  imports: [],
+  imports: [...IMPORTS],
   providers: [...PROVIDERS],
-  exports: [...PROVIDERS],
+  exports: [...PROVIDERS, LoggerModule, QueuesModule],
 })
 export class SharedModule {}

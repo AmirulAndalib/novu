@@ -1,7 +1,9 @@
-import { ChatProviderIdEnum, PushProviderIdEnum } from '@novu/shared';
+import { SubscriberCustomData, ChatProviderIdEnum, PushProviderIdEnum } from '@novu/shared';
 
 import { ExternalSubscriberId } from './types';
-import { SubscriberCustomData } from '@novu/shared';
+import type { OrganizationId } from '../organization';
+import type { EnvironmentId } from '../environment';
+import type { ChangePropsValueType } from '../../types/helpers';
 
 export class SubscriberEntity {
   // TODO: Use SubscriberId. Means lot of changes across whole codebase. Cool down.
@@ -23,9 +25,11 @@ export class SubscriberEntity {
 
   channels?: IChannelSettings[];
 
-  _organizationId: string;
+  topics?: string[];
 
-  _environmentId: string;
+  _organizationId: OrganizationId;
+
+  _environmentId: EnvironmentId;
 
   deleted: boolean;
 
@@ -40,7 +44,11 @@ export class SubscriberEntity {
   lastOnlineAt?: string;
 
   data?: SubscriberCustomData;
+
+  timezone?: string;
 }
+
+export type SubscriberDBModel = ChangePropsValueType<SubscriberEntity, '_environmentId' | '_organizationId'>;
 
 export class IChannelSettings {
   _integrationId: string;
@@ -51,6 +59,8 @@ export class IChannelSettings {
 }
 
 export class IChannelCredentials {
+  phoneNumber?: string;
   webhookUrl?: string;
+  channel?: string;
   deviceTokens?: string[];
 }

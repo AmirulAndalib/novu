@@ -1,29 +1,40 @@
+import { Injectable, ConflictException } from '@nestjs/common';
+
 import { LayoutEntity, LayoutRepository } from '@novu/dal';
-import { Injectable } from '@nestjs/common';
 import { isReservedVariableName } from '@novu/shared';
+import { AnalyticsService, ContentService } from '@novu/application-generic';
 
 import { CreateLayoutCommand } from './create-layout.command';
-
 import { CreateLayoutChangeCommand, CreateLayoutChangeUseCase } from '../create-layout-change';
 import { SetDefaultLayoutCommand, SetDefaultLayoutUseCase } from '../set-default-layout';
 import { LayoutDto } from '../../dtos';
 import { ChannelTypeEnum, ITemplateVariable, LayoutId } from '../../types';
 import { ApiException } from '../../../shared/exceptions/api.exception';
-import { ContentService } from '../../../shared/helpers/content.service';
 
 @Injectable()
 export class CreateLayoutUseCase {
   constructor(
     private createLayoutChange: CreateLayoutChangeUseCase,
     private setDefaultLayout: SetDefaultLayoutUseCase,
-    private layoutRepository: LayoutRepository
+    private layoutRepository: LayoutRepository,
+    private analyticsService: AnalyticsService
   ) {}
 
-  async execute(command: CreateLayoutCommand): Promise<LayoutDto> {
+  async execute(command: CreateLayoutCommand): Promise<LayoutDto & { _id: string }> {
     const variables = this.getExtractedVariables(command.variables as ITemplateVariable[], command.content);
     const hasBody = command.content.includes('{{{body}}}');
     if (!hasBody) {
       throw new ApiException('Layout content must contain {{{body}}}');
+    }
+    const layoutIdentifierExist = await this.layoutRepository.findOne({
+      _organizationId: command.organizationId,
+      _environmentId: command.environmentId,
+      identifier: command.identifier,
+    });
+    if (layoutIdentifierExist) {
+      throw new ConflictException(
+        `Layout with identifier: ${command.identifier} already exists under environment ${command.environmentId}`
+      );
     }
     const entity = this.mapToEntity({ ...command, variables });
 
@@ -31,7 +42,7 @@ export class CreateLayoutUseCase {
 
     const dto = this.mapFromEntity(layout);
 
-    if (dto._id && dto.isDefault === true) {
+    if (dto._id && dto.isDefault) {
       const setDefaultLayoutCommand = SetDefaultLayoutCommand.create({
         environmentId: dto._environmentId,
         layoutId: dto._id,
@@ -39,9 +50,15 @@ export class CreateLayoutUseCase {
         userId: dto._creatorId,
       });
       await this.setDefaultLayout.execute(setDefaultLayoutCommand);
+    } else {
+      await this.createChange(command, dto._id);
     }
 
-    await this.createChange(command, dto._id);
+    this.analyticsService.track('[Layout] - Create', command.userId, {
+      _organizationId: command.organizationId,
+      _environmentId: command.environmentId,
+      layoutId: dto._id,
+    });
 
     return dto;
   }
@@ -67,13 +84,14 @@ export class CreateLayoutUseCase {
       contentType: 'customHtml',
       description: domainEntity.description,
       name: domainEntity.name,
+      identifier: domainEntity.identifier,
       variables: domainEntity.variables,
       isDefault: domainEntity.isDefault ?? false,
       deleted: false,
     };
   }
 
-  private mapFromEntity(layout: LayoutEntity): LayoutDto {
+  private mapFromEntity(layout: LayoutEntity): LayoutDto & { _id: string } {
     return {
       ...layout,
       _id: layout._id,
